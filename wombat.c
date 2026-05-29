@@ -270,12 +270,14 @@ CScriptStringDB_Load(CScriptStringDB *db, const char *path)
 /*
  * 0x00401381 - CScriptStringDB::Get
  *
- * Returns the C-string for the index-th SDB entry. The caller must
- * ensure index is in range; no bounds check is performed.
+ * Returns the C-string for the index-th SDB entry. Returns "" for
+ * out-of-range indices instead of reading past the end of the vector.
  */
 const char *
 CScriptStringDB_Get(CScriptStringDB *db, int index)
 {
+	if (index < 0 || (uint32_t)index >= (uint32_t)(db->last - db->first))
+		return "";
 	return CSdbStr_c_str((CSdbStr *)CSdbStrVector_At(db, (uint32_t)index));
 }
 

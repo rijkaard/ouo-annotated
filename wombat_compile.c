@@ -1241,6 +1241,8 @@ ParseScriptInner(const char *bytecode, const char *name)
 
 	for (;;) {
 		bytecode = ScriptTokenizer_ReadToken(bytecode, tokenBuf);
+		if (bytecode == NULL)
+			return NULL;
 
 		if (CompareTokenType(tokenBuf, TK_FUNCTION)) {
 			bytecode = ParseFunction(bytecode);
@@ -1257,7 +1259,12 @@ ParseScriptInner(const char *bytecode, const char *name)
 			if (g_ScriptCompiler != NULL)
 				CScriptCompiler_ScalarDelete(g_ScriptCompiler, 1);
 			return script;
+		} else {
+			return NULL;
 		}
+
+		if (bytecode == NULL)
+			return NULL;
 	}
 }
 
