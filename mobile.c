@@ -362,11 +362,11 @@ uint16_t
 CMobile_GetBaseStat(CMobile *this, int type)
 {
 	switch (type) {
-	case 0:
+	case STAT_STR:
 		return this->baseStr;
-	case 1:
+	case STAT_DEX:
 		return this->baseDex;
-	case 2:
+	case STAT_INT:
 		return this->baseInt;
 	default:
 		return 0;
@@ -387,15 +387,15 @@ CMobile_SetBaseStat(CMobile *this, int type, uint16_t value)
 	delta = (int)(int16_t)value - (int)(int16_t)CMobile_GetBaseStat(this, type);
 
 	switch (type) {
-	case 0:
+	case STAT_STR:
 		this->baseStr = value;
 		((int (*)(void *, int))VT_FN((CItem *)this, VT_ADD_MAX_HP))(this, delta);
 		break;
-	case 1:
+	case STAT_DEX:
 		this->baseDex = value;
 		((int (*)(void *, int))VT_FN((CItem *)this, VT_ADD_MAX_STAMINA))(this, delta);
 		break;
-	case 2:
+	case STAT_INT:
 		this->baseInt = value;
 		((int (*)(void *, int))VT_FN((CItem *)this, VT_ADD_MAX_MANA))(this, delta);
 		break;
@@ -432,11 +432,11 @@ int16_t
 CMobile_GetStatBonus(CMobile *this, int type)
 {
 	switch (type) {
-	case 0:
+	case STAT_STR:
 		return this->strBonus;
-	case 1:
+	case STAT_DEX:
 		return this->dexBonus;
-	case 2:
+	case STAT_INT:
 		return this->intBonus;
 	default:
 		return 0;
@@ -473,15 +473,15 @@ CMobile_SetStatBonus(CMobile *this, int type, int16_t value)
 	delta = (int)(int16_t)value - (int)(int16_t)CMobile_GetStatBonus(this, type);
 
 	switch (type) {
-	case 0:
+	case STAT_STR:
 		this->strBonus = value;
 		((int (*)(void *, int))VT_FN((CItem *)this, VT_ADD_MAX_HP))(this, delta);
 		break;
-	case 1:
+	case STAT_DEX:
 		this->dexBonus = value;
 		((int (*)(void *, int))VT_FN((CItem *)this, VT_ADD_MAX_STAMINA))(this, delta);
 		break;
-	case 2:
+	case STAT_INT:
 		this->intBonus = value;
 		((int (*)(void *, int))VT_FN((CItem *)this, VT_ADD_MAX_MANA))(this, delta);
 		break;
@@ -3848,19 +3848,19 @@ CMobile_BroadcastStatUpdate(CMobile *this, int statType)
 		goto cleanup;
 
 	switch (statType) {
-	case 0:
+	case STATUPDATE_HP:
 		PacketManager_MakePacket_HP_HEALTH(buf, this->container.item.serial, (uint16_t)this->maxHp, (uint16_t)this->hp);
 		SendToClientList(&filteredList, buf);
 		break;
-	case 1:
+	case STATUPDATE_MANA:
 		PacketManager_MakePacket_MANA_HEALTH(buf, this->container.item.serial, (uint16_t)this->maxMana, (uint16_t)this->mana);
 		SendToClientList(&filteredList, buf);
 		break;
-	case 2:
+	case STATUPDATE_STAMINA:
 		PacketManager_MakePacket_FAT_HEALTH(buf, this->container.item.serial, (uint16_t)this->maxStamina, (uint16_t)this->stamina);
 		SendToClientList(&filteredList, buf);
 		break;
-	case 3:
+	case STATUPDATE_ALL:
 		PacketManager_MakePacket_HEALTH(buf, this->container.item.serial, (uint16_t)this->maxHp, (uint16_t)this->hp, (uint16_t)this->maxMana, (uint16_t)this->mana,
 		        (uint16_t)this->maxStamina, (uint16_t)this->stamina);
 		SendToClientList(&filteredList, buf);
@@ -3918,15 +3918,15 @@ CMobile_PickOtherStat(CMobile *self, int statIdx)
 	choice1 = 0;
 	choice2 = 2;
 	switch (statIdx) {
-	case 0:
+	case STAT_STR:
 		choice1 = 2;
 		choice2 = 1;
 		break;
-	case 2:
+	case STAT_INT:
 		choice1 = 0;
 		choice2 = 1;
 		break;
-	case 1:
+	case STAT_DEX:
 		choice1 = 2;
 		choice2 = 0;
 		break;

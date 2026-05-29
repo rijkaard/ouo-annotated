@@ -2255,30 +2255,30 @@ CPlayer_PaperdollTitle_VT(CPlayer *this, CString *title)
 
 	bestValue = bestValue / 100;
 	switch (bestValue) {
-	case 0:
+	case RANK_NONE:
 	case 1:
 	case 2:
 		CString_AppendCStr(title, ", ");
 		break;
-	case 3:
+	case RANK_NEOPHYTE:
 		CString_AppendCStr(title, ", Neophyte ");
 		break;
-	case 4:
+	case RANK_NOVICE:
 		CString_AppendCStr(title, ", Novice ");
 		break;
-	case 5:
+	case RANK_APPRENTICE:
 		CString_AppendCStr(title, ", Apprentice ");
 		break;
-	case 6:
+	case RANK_JOURNEYMAN:
 		CString_AppendCStr(title, ", Journeyman ");
 		break;
-	case 7:
+	case RANK_EXPERT:
 		CString_AppendCStr(title, ", Expert ");
 		break;
-	case 8:
+	case RANK_ADEPT:
 		CString_AppendCStr(title, ", Adept ");
 		break;
-	case 9:
+	case RANK_MASTER:
 		CString_AppendCStr(title, ", Master ");
 		break;
 	default:
@@ -2287,108 +2287,108 @@ CPlayer_PaperdollTitle_VT(CPlayer *this, CString *title)
 	}
 
 	switch (bestSkill) {
-	case 0:
+	case SKILL_ALCHEMY:
 		CString_AppendCStr(title, "Alchemist");
 		break;
-	case 1:
-	case 17:
-	case 39:
+	case SKILL_ANATOMY:
+	case SKILL_HEALING:
+	case SKILL_VETERINARY:
 		CString_AppendCStr(title, "Healer");
 		break;
-	case 2:
-	case 12:
-	case 16:
-	case 19:
+	case SKILL_ANIMAL_LORE:
+	case SKILL_CARTOGRAPHY:
+	case SKILL_EVAL_INT:
+	case SKILL_FORENSIC:
 		CString_AppendCStr(title, "Scholar");
 		break;
-	case 3:
+	case SKILL_ITEM_ID:
 		CString_AppendCStr(title, "Merchant");
 		break;
-	case 4:
-	case 5:
-	case 27:
+	case SKILL_ARMS_LORE:
+	case SKILL_PARRYING:
+	case SKILL_TACTICS:
 		CString_AppendCStr(title, "Warrior");
 		break;
-	case 6:
+	case SKILL_BEGGING:
 		CString_AppendCStr(title, "Beggar");
 		break;
-	case 7:
+	case SKILL_BLACKSMITHY:
 		CString_AppendCStr(title, "Smith");
 		break;
-	case 8:
+	case SKILL_BOWCRAFT:
 		CString_AppendCStr(title, "Bowyer");
 		break;
-	case 9:
-	case 15:
-	case 22:
-	case 29:
+	case SKILL_PEACEMAKING:
+	case SKILL_ENTICEMENT:
+	case SKILL_PROVOCATION:
+	case SKILL_MUSICIANSHIP:
 		CString_AppendCStr(title, "Bard");
 		break;
-	case 10:
-	case 14:
-	case 20:
-	case 35:
-	case 38:
+	case SKILL_CAMPING:
+	case SKILL_DETECT_HIDDEN:
+	case SKILL_HERDING:
+	case SKILL_ANIMAL_TAMING:
+	case SKILL_TRACKING:
 		CString_AppendCStr(title, "Ranger");
 		break;
-	case 11:
+	case SKILL_CARPENTRY:
 		CString_AppendCStr(title, "Carpenter");
 		break;
-	case 13:
-	case 36:
+	case SKILL_COOKING:
+	case SKILL_TASTE_ID:
 		CString_AppendCStr(title, "Chef");
 		break;
-	case 18:
+	case SKILL_FISHING:
 		CString_AppendCStr(title, "Fisherman");
 		break;
-	case 21:
-	case 24:
-	case 28:
-	case 33:
+	case SKILL_HIDING:
+	case SKILL_LOCKPICKING:
+	case SKILL_SNOOPING:
+	case SKILL_STEALING:
 		CString_AppendCStr(title, "Rogue");
 		break;
-	case 23:
-	case 25:
-	case 26:
+	case SKILL_INSCRIPTION:
+	case SKILL_MAGERY:
+	case SKILL_MAGIC_RESIST:
 		CString_AppendCStr(title, "Mage");
 		break;
-	case 30:
+	case SKILL_POISONING:
 		CString_AppendCStr(title, "Assassin");
 		break;
-	case 31:
+	case SKILL_ARCHERY:
 		CString_AppendCStr(title, "Archer");
 		break;
-	case 32:
+	case SKILL_SPIRIT_SPEAK:
 		CString_AppendCStr(title, "Medium");
 		break;
-	case 34:
+	case SKILL_TAILORING:
 		CString_AppendCStr(title, "Tailor");
 		break;
-	case 37:
+	case SKILL_TINKERING:
 		CString_AppendCStr(title, "Tinker");
 		break;
-	case 40:
-		if (this->mobile.sex == 1)
+	case SKILL_SWORDSMANSHIP:
+		if (this->mobile.sex == SEX_FEMALE)
 			CString_AppendCStr(title, "Swordswoman");
 		else
 			CString_AppendCStr(title, "Swordsman");
 		break;
-	case 41:
-		if (this->mobile.sex == 1)
+	case SKILL_MACE_FIGHTING:
+		if (this->mobile.sex == SEX_FEMALE)
 			CString_AppendCStr(title, "Armswoman");
 		else
 			CString_AppendCStr(title, "Armsman");
 		break;
-	case 42:
+	case SKILL_FENCING:
 		CString_AppendCStr(title, "Fencer");
 		break;
-	case 43:
+	case SKILL_WRESTLING:
 		CString_AppendCStr(title, "Wrestler");
 		break;
-	case 44:
+	case SKILL_LUMBERJACKING:
 		CString_AppendCStr(title, "Lumberjack");
 		break;
-	case 45:
+	case SKILL_MINING:
 		CString_AppendCStr(title, "Miner");
 		break;
 	default:
@@ -3816,10 +3816,10 @@ CPlayer_BusyMessage(CPlayer *this, int busyType)
 	this->cooldownCounter++;
 	if (this->cooldownCounter < 3) {
 		switch (busyType) {
-		case 0:
+		case BUSY_SKILL:
 			CPlayer_SystemMessage(this, "You must wait a few moments to use another skill.");
 			break;
-		case 1:
+		case BUSY_ACTION:
 			CPlayer_SystemMessage(this, "You must wait to perform another action.");
 			break;
 		}
@@ -4387,13 +4387,13 @@ CPlayer_GetCounselorTitle(CPlayer *this, CString *out)
 		CResourceEntity_GetTagInt((CItem *)this, "counType", &counType);
 
 	switch (counType) {
-	case 1:
+	case COUN_SEER:
 		CString_AssignCStr(out, "Seer");
 		break;
-	case 2:
+	case COUN_COUNSELOR:
 		CString_AssignCStr(out, "Counselor");
 		break;
-	case 3:
+	case COUN_SENIOR:
 		CString_AssignCStr(out, "Senior Counselor");
 		break;
 	}

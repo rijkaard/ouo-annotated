@@ -418,18 +418,18 @@ CNPC_ScanForTargets(CItem *self, int range, int isPredator, int isFlying, int is
 	actionType = targets[chosenIdx].type;
 
 	switch (actionType) {
-	case 0:
+	case SCAN_ACTION_ATTACK:
 		CombatInitiate((CMobile *)self, (CMobile *)targets[chosenIdx].entity, 1);
 		((CNPC *)self)->aiState = 3;
 		break;
-	case 1:
+	case SCAN_ACTION_PACK_MERGE:
 		if (VT_IsNPC(targets[chosenIdx].entity)) {
 			packTarget = targets[chosenIdx].entity;
 			if (packTarget != NULL)
 				NPC_PackMerge((CMobile *)self, (CMobile *)packTarget);
 		}
 		break;
-	case 2:
+	case SCAN_ACTION_FLEE:
 		CLocation_SetLoc(&((CNPC *)self)->patrolTarget, &self->resourceEntity.entity.location);
 		dx = (int16_t)targets[chosenIdx].entity->resourceEntity.entity.location.x - (int16_t)self->resourceEntity.entity.location.x;
 		dy = (int16_t)targets[chosenIdx].entity->resourceEntity.entity.location.y - (int16_t)self->resourceEntity.entity.location.y;
@@ -648,31 +648,31 @@ NPC_DebugState(CItem *entity)
 	state = ((CNPC *)entity)->aiState;
 
 	switch (state) {
-	case 10:
+	case ISCAN_IDLE:
 		stateName = "Idle";
 		break;
-	case 0:
+	case ISCAN_WANDER:
 		stateName = "Wander";
 		break;
-	case 1:
+	case ISCAN_PURSUE:
 		stateName = "Pursue";
 		break;
-	case 2:
+	case ISCAN_RUNAWAY:
 		stateName = "Runaway";
 		break;
-	case 3:
+	case ISCAN_COMBAT:
 		stateName = "Combat";
 		break;
-	case 4:
+	case ISCAN_FOLLOWING:
 		stateName = "Following";
 		break;
-	case 5:
+	case ISCAN_TALKING:
 		stateName = "Talking";
 		break;
-	case 6:
+	case ISCAN_LOITER:
 		stateName = "Loiter";
 		break;
-	case 7:
+	case ISCAN_SLEEP:
 		stateName = "Sleep";
 		break;
 	default:
@@ -5814,7 +5814,7 @@ CMobile_NPC_SetAIState(CMobile *mob, int state)
 	// BroadcastAnimation args: action, frameCount, repeatCount, backward, repeat, delay
 	switch (state) {
 
-	case 1: // WANDER - gentle walk
+	case NPC_ANIM_WANDER: // WANDER - gentle walk
 		if (body < 150) {
 			if (body != 8 && body != 22) {
 				// Body 0x15: repeat=1 (binary special case)
@@ -5834,11 +5834,11 @@ CMobile_NPC_SetAIState(CMobile *mob, int state)
 		PlaySoundAtEntity((CItem *)mob, mob->sfxNotice, 0);
 		break;
 
-	case 2: // IDLE SOUND
+	case NPC_ANIM_IDLE_SOUND: // IDLE SOUND
 		PlaySoundAtEntity((CItem *)mob, mob->sfxIdle, 0);
 		break;
 
-	case 3: // WANDER WITH VARIETY
+	case NPC_ANIM_WANDER_VARIETY: // WANDER WITH VARIETY
 		if (body < 150) {
 			r = GetRandomRange(1, 2);
 			if (r == 1) {
@@ -5882,7 +5882,7 @@ CMobile_NPC_SetAIState(CMobile *mob, int state)
 		PlaySoundAtEntity((CItem *)mob, mob->sfxIdle, 0);
 		break;
 
-	case 4: // COMBAT SWING - play attack animation + weapon sound
+	case NPC_ANIM_COMBAT_SWING: // COMBAT SWING - play attack animation + weapon sound
 		if (!VT_IsVendor((CItem *)mob)) {
 			Combat_PlaySwingAnimation(mob, CMobile_GetWeapon(mob), mob);
 			Combat_PlayMeleeMissSfx((CItem *)mob, (CItem *)mob, (CItem *)CMobile_GetWeapon(mob));
@@ -5890,7 +5890,7 @@ CMobile_NPC_SetAIState(CMobile *mob, int state)
 		}
 		break;
 
-	case 5: // COMBAT WANDER
+	case NPC_ANIM_COMBAT_WANDER: // COMBAT WANDER
 		if (body < 150) {
 			if (body != 8 && body != 22) {
 				// Body 0x15: repeat=1 (binary special case), others repeat=0
@@ -6288,31 +6288,31 @@ CNPC_EcologyTick(CItem *self)
 
 	// Exit translation: IdleScan state -> HandleStates state
 	switch (npc->aiState) {
-	case 0:
+	case ISCAN_WANDER:
 		// IdleScan "reset" - patrolTarget set, isWalking=1
 		npc->aiState = NPC_STATE_IDLE;
 		break;
-	case 1:
+	case ISCAN_PURSUE:
 		// IdleScan pursuit trigger (1/10 chance, line 571)
 		npc->aiState = NPC_STATE_SEEK_SHELTER;
 		break;
-	case 2:
+	case ISCAN_RUNAWAY:
 		// IdleScan aversion flee
 		npc->aiState = NPC_STATE_RUNAWAY;
 		break;
-	case 3:
+	case ISCAN_COMBAT:
 		// IdleScan predator pursuit (after CombatInitiate)
 		npc->aiState = NPC_STATE_ATTACK_TARGET;
 		break;
-	case 4:
+	case ISCAN_FOLLOWING:
 		// IdleScan following (early return)
 		npc->aiState = NPC_STATE_FOLLOWING;
 		break;
-	case 7:
+	case ISCAN_SLEEP:
 		// IdleScan eating countdown
 		npc->aiState = NPC_STATE_EAT_FOOD;
 		break;
-	case 0xa:
+	case ISCAN_IDLE:
 		// IdleScan idle wander
 		npc->aiState = NPC_STATE_IDLE;
 		break;

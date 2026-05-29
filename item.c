@@ -1618,7 +1618,7 @@ CItem_GetSurfaceFlags_VT(CItem *self, int moveType)
 	flags = ((int (*)(void *))VT_FN(self, VT_GET_FLAGS))(self);
 
 	switch (moveType) {
-	case 0:
+	case SMT_WALK:
 		if (flags & 0x240)
 			result |= 0x40;
 		if (flags & 0x200)
@@ -1626,9 +1626,9 @@ CItem_GetSurfaceFlags_VT(CItem *self, int moveType)
 		if (flags & 0x400)
 			result |= 0x400;
 		break;
-	case 1:
-	case 6:
-	case 8:
+	case SMT_RUN:
+	case SMT_DOOR_AWARE:
+	case SMT_MOUNT:
 		if (flags & 0x240)
 			result |= 0x40;
 		if (!(flags & 0x40)) {
@@ -1639,7 +1639,7 @@ CItem_GetSurfaceFlags_VT(CItem *self, int moveType)
 		}
 		// moveType 6 shares case 1/8 but then clears the blocking bit
 		// for doors, specific body types, and moveable containers.
-		if (moveType == 6) {
+		if (moveType == SMT_DOOR_AWARE) {
 			bodyType = CEntity_GetBodyType(self) & 0xFFFF;
 			if (bodyType == 0x692 || (bodyType >= 0x6F5 && bodyType <= 0x6F6) || bodyType == 0x846 || bodyType == 0x873) {
 				result &= ~0x40;
@@ -1652,7 +1652,7 @@ CItem_GetSurfaceFlags_VT(CItem *self, int moveType)
 			}
 		}
 		break;
-	case 2:
+	case SMT_FLY:
 		if (flags & 0x240)
 			result |= 0x40;
 		if (((int (*)(void *))VT_FN(self, VT_GET_HEIGHT))(self) < 0x14 && !(flags & 0x10))
@@ -1660,14 +1660,14 @@ CItem_GetSurfaceFlags_VT(CItem *self, int moveType)
 		if (flags & 0x400)
 			result |= 0x400;
 		break;
-	case 3:
-	case 4:
+	case SMT_CREATURE_A:
+	case SMT_CREATURE_B:
 		if (flags & 0x80)
 			result |= 0x200;
 		else
 			result |= 0x40;
 		break;
-	case 5:
+	case SMT_EXTENDED:
 		if (flags & 0x240)
 			result |= 0x40;
 		if ((flags & 0x200) && !(flags & 0x40))
@@ -1677,7 +1677,7 @@ CItem_GetSurfaceFlags_VT(CItem *self, int moveType)
 		if (flags & 0x80)
 			result |= 0x600;
 		break;
-	case 7:
+	case SMT_WATER:
 		return 0x200;
 	default:
 		break;
@@ -2353,13 +2353,13 @@ CItem_GetNameString_VT(CItem *item, int withAmount)
 	flags = ((uint32_t (*)(void *))VT_FN(item, VT_GET_FLAGS))(item);
 	flags &= 0xC000;
 	switch (flags) {
-	case 0x4000:
+	case ARTICLE_A:
 		strcat(g_ItemNameBuf, "a ");
 		break;
-	case 0x8000:
+	case ARTICLE_AN:
 		strcat(g_ItemNameBuf, "an ");
 		break;
-	case 0xC000:
+	case ARTICLE_THE:
 		strcat(g_ItemNameBuf, "the ");
 		break;
 	default:
