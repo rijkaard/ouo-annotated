@@ -925,7 +925,7 @@ CEditorObj_HandleEdit(CPlayer *player, int type, int16_t x, int16_t y, int8_t z,
 		return;
 
 	switch (type & 0xFF) {
-	case 0:
+	case GCMD_OUTDATED:
 		CConfig_NoOp_4688C1("Outdated form of editing.");
 		break;
 
@@ -954,8 +954,8 @@ CEditorObj_HandleEdit(CPlayer *player, int type, int16_t x, int16_t y, int8_t z,
 		break;
 	}
 
-	case 4:
-	case 11: {
+	case GCMD_CREATE_DYNAMIC:
+	case GCMD_CREATE_STATIC: {
 		// Create item (dynamic for type 4, static for type 11).
 		blockIdx = CBlockManager_GetBlockIndex(&g_SpatialGrid, x & 0xFFFF, y & 0xFFFF, 0);
 		USED(blockIdx); // binary computes but discards
@@ -1075,7 +1075,7 @@ CEditorObj_HandleEdit(CPlayer *player, int type, int16_t x, int16_t y, int8_t z,
 		break;
 	}
 
-	case 6:
+	case GCMD_SET_HIDDEN:
 		CPlayer_SetHiddenFlag(player, x & 0xFFFF);
 		// falls through to default
 	default:
@@ -2827,9 +2827,9 @@ HandlePacket_SPEECH(CPlayer *this, uint8_t *buf)
 	}
 
 	switch (speechType) {
-	case 0:
-	case 3:
-	case 4:
+	case SPEECH_REGULAR:
+	case SPEECH_SYSTEM:
+	case SPEECH_FOCUSED:
 		// Normal speech, range 9
 		if (VT_IsDead((CItem *)this))
 			Speech_BroadcastDead(this, speechType, text, hue, font, 9);
@@ -2842,7 +2842,7 @@ HandlePacket_SPEECH(CPlayer *this, uint8_t *buf)
 		}
 		break;
 
-	case 8:
+	case SPEECH_WHISPER:
 		// Whisper, range 1
 		if (VT_IsDead((CItem *)this))
 			Speech_BroadcastDead(this, speechType, text, hue, font, 1);
@@ -2851,7 +2851,7 @@ HandlePacket_SPEECH(CPlayer *this, uint8_t *buf)
 		CMobile_SetSpeechHue(&this->mobile, hue);
 		break;
 
-	case 9:
+	case SPEECH_YELL:
 		// Yell, range 18
 		if (VT_IsDead((CItem *)this))
 			Speech_BroadcastDead(this, speechType, text, hue, font, 18);
@@ -2861,7 +2861,7 @@ HandlePacket_SPEECH(CPlayer *this, uint8_t *buf)
 		CWorld_SpeechNotifyNearby(&this->mobile.container.item, this->mobile.container.item.serial, &this->mobile.container.item.resourceEntity.entity.location, text, 18);
 		break;
 
-	case 1:
+	case SPEECH_BROADCAST:
 		// Broadcast (GM only)
 		if (!CPlayer_IsEditing(this))
 			break;
@@ -2871,7 +2871,7 @@ HandlePacket_SPEECH(CPlayer *this, uint8_t *buf)
 		}
 		break;
 
-	case 2:
+	case SPEECH_EMOTE:
 		// Emote: dead players cannot emote
 		if (VT_IsDead((CItem *)this))
 			break;
@@ -3902,11 +3902,11 @@ HandlePacket_GODCOMMAND(CPlayer *this, uint8_t *buf)
 	GetString(buf, &off, &text, 0xF1);
 
 	switch (subcommand) {
-	case 0x07: // Action (stub - immediate ret in binary)
-	case 0x08: // (stub)
-	case 0x09: // (stub)
+	case MACRO_STUB_07: // Action (stub - immediate ret in binary)
+	case MACRO_STUB_08: // (stub)
+	case MACRO_STUB_09: // (stub)
 		break;
-	case 0x24: {
+	case MACRO_USE_SKILL: {
 		// 0x00448372 - UseSkillByMacro
 		int skillId, skillArg;
 		const char *handler;
@@ -3959,7 +3959,7 @@ HandlePacket_GODCOMMAND(CPlayer *this, uint8_t *buf)
 		USED(skillArg);
 		break;
 	}
-	case 0x26: {
+	case MACRO_CAST_SPELL_NAME: {
 		// 0x0044822B - CastSpellByName
 		char incantation[480];
 		uint8_t obuf[0x42C];
@@ -3982,15 +3982,15 @@ HandlePacket_GODCOMMAND(CPlayer *this, uint8_t *buf)
 			text++;
 		}
 		incantation[outIdx] = '\0';
-		PacketManager_MakePacket_TEXT(obuf, NULL, (CItem *)&this->mobile.container.item, 6, incantation, 0x3B2, 0);
+		PacketManager_MakePacket_TEXT(obuf, NULL, (CItem *)&this->mobile.container.item, SPEECH_SPELL, incantation, 0x3B2, 0);
 		SendToClient((CItem *)&this->mobile.container.item, obuf, -1);
 		break;
 	}
-	case 0x27: {
+	case MACRO_OPEN_SPELLBOOK: {
 		OpenSpellbookToSpell(this, text);
 		break;
 	}
-	case 0x43: {
+	case MACRO_OPEN_DOOR_EQUIP: {
 		// 0x00447F24: OpenDoor_Equipment
 		int i;
 		CItem *item;
@@ -4018,7 +4018,7 @@ opendoor_nextslot:;
 opendoor_done:
 		break;
 	}
-	case 0x56: {
+	case MACRO_CAST_SPELL_ID: {
 		// CastSpellByID (0x00448047): spell-by-ID handler.
 		int spellId, i;
 		CMobile *mob = &this->mobile;
@@ -4059,7 +4059,7 @@ opendoor_done:
 castspell_done:
 		break;
 	}
-	case 0x57: {
+	case MACRO_TOGGLE_DIR_FLAG: {
 		// 0x00447DE9 - Direction flag toggle.
 		int dirVal, dirVal2;
 
@@ -4069,7 +4069,7 @@ castspell_done:
 			CPlayer_ToggleDirectionFlag(this, (uint8_t)dirVal);
 		break;
 	}
-	case 0x58: {
+	case MACRO_OPEN_DOOR_SPATIAL: {
 		// 0x00447C8B - OpenDoor via spatial search.
 		static const int32_t dirOffX[8] = { 0, 1, 1, 1, 0, -1, -1, -1 };
 		static const int32_t dirOffY[8] = { -1, -1, 0, 1, 1, 1, 0, -1 };
@@ -4106,10 +4106,10 @@ castspell_done:
 		}
 		break;
 	}
-	case 0x59:
+	case MACRO_LAST_SPELL:
 		LastSpell(this);
 		break;
-	case 0x5C: {
+	case MACRO_SET_COMBAT_BYTES: {
 		// OpenClose / SetCombatBytes (0x00447C40): parses "%d %d %d",
 		// sets combatBytes at offsets 0x33D, 0x33E, 0x33F
 		int combatByte2, combatByte3, combatByte4;
@@ -4119,7 +4119,7 @@ castspell_done:
 		this->mobile.combatByte4 = (uint8_t)combatByte4;
 		break;
 	}
-	case 0xC7: {
+	case MACRO_BOW_SALUTE: {
 		// 0x00447E2E - BowSalute
 		uint8_t animBuf[16];
 
@@ -4476,7 +4476,7 @@ HandlePacket_CLIENTQUERY(CPlayer *this, uint8_t *buf)
 		return;
 
 	switch (subtype) {
-	case 0x02: {
+	case CQUERY_MUSIC: {
 		// Region music query (0x00496524).
 		// Demo regions have empty music lists so no packets are actually sent.
 		if (!CPlayer_IsLoaded(this))
@@ -4486,13 +4486,13 @@ HandlePacket_CLIENTQUERY(CPlayer *this, uint8_t *buf)
 		CResourceEntity_SendMusicToPlayer((CItem *)&g_ResEntitySlots[param], this, (uint16_t)param);
 		break;
 	}
-	case 0x03:
+	case CQUERY_RESTYPE:
 		// Resource type query (0x004965A6) - GM editing tool.
 		if (!CPlayer_IsLoaded(this))
 			break;
 		CResourceTypeManager_SendAll((CItem *)this);
 		break;
-	case 0x04: {
+	case CQUERY_STATUS: {
 		// Status request (0x004965C5) - send MOBILESTAT (0x11) for target entity.
 		CMobile *mob;
 		CItem *entity;
@@ -4516,7 +4516,7 @@ HandlePacket_CLIENTQUERY(CPlayer *this, uint8_t *buf)
 		SendStatusToPlayer(mob, this, this->mobile.container.item.serial, extended);
 		break;
 	}
-	case 0x05: {
+	case CQUERY_SKILLS_ALL: {
 		// Full skill list (0x004966EA)
 		// MODIFIED: Extended format for 1.26.2+ clients.
 		uint8_t obuf[0x820];
@@ -4531,7 +4531,7 @@ HandlePacket_CLIENTQUERY(CPlayer *this, uint8_t *buf)
 		SendToClient((CItem *)this, obuf, -1);
 		break;
 	}
-	case 0x06: {
+	case CQUERY_SKILL_SINGLE: {
 		// Single skill update (0x0049669F)
 		// MODIFIED: Extended format for 1.26.2+ clients.
 		uint8_t obuf[0x41C];
@@ -4551,7 +4551,7 @@ HandlePacket_CLIENTQUERY(CPlayer *this, uint8_t *buf)
 		SendToClient((CItem *)this, obuf, -1);
 		break;
 	}
-	case 0xFD: {
+	case CQUERY_RES_NODE: {
 		// Resource node query (0x00496657)
 		CItem *entity;
 		if (!CPlayer_IsLoaded(this))
@@ -5432,7 +5432,7 @@ HandlePacket_BBOARD(CPlayer *this, uint8_t *buf)
 	GetByte(buf, &off, &subCmd);
 
 	switch (subCmd & 0xFF) {
-	case 3: {
+	case BBOARD_REQ_POST_BODY: {
 		// Request post body
 		GetDWord(buf, &off, &boardSerial);
 		GetDWord(buf, &off, &postSerial);
@@ -5446,7 +5446,7 @@ HandlePacket_BBOARD(CPlayer *this, uint8_t *buf)
 		break;
 	}
 
-	case 4: {
+	case BBOARD_REQ_BOARD_SUMMARY: {
 		// Request board summary
 		GetDWord(buf, &off, &boardSerial);
 		GetDWord(buf, &off, &postSerial);
@@ -5460,7 +5460,7 @@ HandlePacket_BBOARD(CPlayer *this, uint8_t *buf)
 		break;
 	}
 
-	case 5: {
+	case BBOARD_POST_MESSAGE: {
 		// Post new message
 		GetDWord(buf, &off, &boardSerial);
 		GetDWord(buf, &off, &replySerial);
@@ -5505,7 +5505,7 @@ HandlePacket_BBOARD(CPlayer *this, uint8_t *buf)
 		break;
 	}
 
-	case 6: {
+	case BBOARD_REMOVE_POST: {
 		// Remove post
 		GetDWord(buf, &off, &boardSerial);
 		GetDWord(buf, &off, &postSerial);
@@ -7290,7 +7290,7 @@ HandlePacket_TriggerEdit(CPlayer *this, uint8_t *buf)
 			goto epilogue;
 
 		switch (switchVal) {
-		case 10: {
+		case TEDIT_DELETE_ENTITIES: {
 			int32_t delIdx;
 
 			for (delIdx = 0; delIdx < (int)(connIndex & 0xFFFF); delIdx++) {
@@ -7306,11 +7306,11 @@ HandlePacket_TriggerEdit(CPlayer *this, uint8_t *buf)
 			return;
 		}
 
-		case 9:
+		case TEDIT_SCRIPT_CALLBACK:
 			Script_callback(entitySerial, 1, connIndex & 0xFFFF);
 			return;
 
-		case 8: {
+		case TEDIT_TAG_SEARCH: {
 			char *tagSearchStr;
 			int32_t tagFoundCount;
 			int32_t tagRemaining;
@@ -7421,19 +7421,19 @@ next_tag_entity:
 			goto epilogue;
 		}
 
-		case 7: {
+		case TEDIT_OP_546F: {
 			char *opData = readCur + 4;
 			TriggerEdit_Op546F(opData);
 			return;
 		}
 
-		case 5: {
+		case TEDIT_SET_STRING_PROP: {
 			char *opData = readCur + 4;
 			TriggerEdit_SetStringProp(entity, opData);
 			return;
 		}
 
-		case 4: {
+		case TEDIT_SET_OBJVAR: {
 			char *varData = readCur + 4;
 			int32_t varSubType = connIndex & 0xFFFF;
 			char nameBuf[128];
@@ -7469,26 +7469,26 @@ next_tag_entity:
 					CLocation_Init(&varLoc);
 					CLocation_Set(&varLoc, (int16_t)locValX, (int16_t)locValY, (int16_t)locValZ);
 
-					CEntity_SetObjVar(entity, nameBuf, 3, (uintptr_t)&varLoc);
+					CEntity_SetObjVar(entity, nameBuf, OBJVAR_LOC, (uintptr_t)&varLoc);
 					break;
 				}
-				case 0: {
+				case OBJVAR_INT: {
 					int32_t intVal;
 					char *intCur = varCur;
 
 					intVal = ReadInt32LE(&intCur);
-					CEntity_SetObjVar(entity, nameBuf, 0, (uint32_t)intVal);
+					CEntity_SetObjVar(entity, nameBuf, OBJVAR_INT, (uint32_t)intVal);
 					break;
 				}
-				case 4: {
+				case OBJVAR_OBJ: {
 					int32_t objVal;
 					char *objCur = varCur;
 
 					objVal = ReadInt32LE(&objCur);
-					CEntity_SetObjVar(entity, nameBuf, 4, (uint32_t)objVal);
+					CEntity_SetObjVar(entity, nameBuf, OBJVAR_OBJ, (uint32_t)objVal);
 					break;
 				}
-				case 1: {
+				case OBJVAR_STR: {
 					CString _v, _n;
 					CString_Constructor(&_v, varCur);
 					CString_Constructor(&_n, nameBuf);
@@ -7496,7 +7496,7 @@ next_tag_entity:
 					CString_Destructor(&_v);
 					break;
 				}
-				case 3:
+				case OBJVAR_LOC:
 					// fall through to default
 					break;
 				}
@@ -7511,13 +7511,13 @@ next_tag_entity:
 			return;
 		}
 
-		case 2: {
+		case TEDIT_OP_CALL: {
 			char *opData = readCur + 4;
 			TriggerEdit_Op545E(entity, opData);
 			return;
 		}
 
-		case 1: {
+		case TEDIT_ATTACH_SCRIPT: {
 			char *scriptName = readCur + 4;
 			const char *attachResult;
 
@@ -7534,7 +7534,7 @@ next_tag_entity:
 			goto epilogue;
 		}
 
-		case 0: {
+		case TEDIT_QUERY_ENTITY: {
 			int32_t scriptCount;
 			int32_t tagCount;
 
@@ -7613,7 +7613,7 @@ next_tag_entity:
 						int tagType = (int)tagDefEntry->type;
 
 						switch (tagType) {
-						case 0: {
+						case OBJVAR_INT: {
 							// Type 0: write 0, then int32 value
 							WriteInt32LE(&tagWritePos, 0);
 							int32_t intVal = (int32_t)tagDefEntry->value;
@@ -7621,7 +7621,7 @@ next_tag_entity:
 							writeCur = tagWritePos;
 							break;
 						}
-						case 4: {
+						case OBJVAR_OBJ: {
 							// Type 4: write 4, then int32 value
 							WriteInt32LE(&tagWritePos, 4);
 							int32_t intVal = (int32_t)tagDefEntry->value;
@@ -7629,7 +7629,7 @@ next_tag_entity:
 							writeCur = tagWritePos;
 							break;
 						}
-						case 1: {
+						case OBJVAR_STR: {
 							// Type 1: write 1, then string value
 							const char *strVal;
 							void *strObj = (void *)tagDefEntry->value;
@@ -7646,7 +7646,7 @@ next_tag_entity:
 							writeCur += strLen;
 							break;
 						}
-						case 3: {
+						case OBJVAR_LOC: {
 							// Type 3: write 2, then 3 int16 values (location)
 							CLocation *loc = (CLocation *)tagDefEntry->value;
 
@@ -8059,34 +8059,34 @@ DoorOpen(CItem *door)
 	doorType = CWorld_GetItemLayer(door->resourceEntity.entity.bodyType) & 0xFF;
 
 	switch (doorType) {
-	case 0:
+	case DOOR_FACING_0:
 		CLocation_IncrY(&loc);
 		CLocation_DecrX(&loc);
 		break;
-	case 1:
+	case DOOR_FACING_1:
 		CLocation_IncrY(&loc);
 		CLocation_IncrX(&loc);
 		break;
-	case 2:
+	case DOOR_FACING_2:
 		CLocation_DecrX(&loc);
 		break;
-	case 3:
+	case DOOR_FACING_3:
 		CLocation_DecrY(&loc);
 		CLocation_IncrX(&loc);
 		break;
-	case 4:
+	case DOOR_FACING_4:
 		CLocation_IncrY(&loc);
 		CLocation_IncrX(&loc);
 		break;
-	case 5:
+	case DOOR_FACING_5:
 		CLocation_DecrY(&loc);
 		CLocation_IncrX(&loc);
 		break;
-	case 6:
+	case DOOR_FACING_6:
 		CLocation_IncrY(&loc);
 		CLocation_DecrX(&loc);
 		break;
-	case 7:
+	case DOOR_FACING_7:
 		CLocation_DecrY(&loc);
 		break;
 	default:
@@ -8156,34 +8156,34 @@ DoorClose(CItem *door, int unused)
 	doorType = CItem_GetLayerThiscall(door) & 0xFF;
 
 	switch (doorType) {
-	case 0:
+	case DOOR_FACING_0:
 		CLocation_DecrY(&loc);
 		CLocation_IncrX(&loc);
 		break;
-	case 1:
+	case DOOR_FACING_1:
 		CLocation_DecrY(&loc);
 		CLocation_DecrX(&loc);
 		break;
-	case 2:
+	case DOOR_FACING_2:
 		CLocation_IncrX(&loc);
 		break;
-	case 3:
+	case DOOR_FACING_3:
 		CLocation_IncrY(&loc);
 		CLocation_DecrX(&loc);
 		break;
-	case 4:
+	case DOOR_FACING_4:
 		CLocation_DecrY(&loc);
 		CLocation_DecrX(&loc);
 		break;
-	case 5:
+	case DOOR_FACING_5:
 		CLocation_IncrY(&loc);
 		CLocation_DecrX(&loc);
 		break;
-	case 6:
+	case DOOR_FACING_6:
 		CLocation_DecrY(&loc);
 		CLocation_IncrX(&loc);
 		break;
-	case 7:
+	case DOOR_FACING_7:
 		CLocation_IncrY(&loc);
 		break;
 	default:
