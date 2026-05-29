@@ -624,6 +624,41 @@ enum EquipQualifier {
     EQ_QUAL_INVENT        = 6, /* Vendor offered container (equipment[27]) */
 };
 
+/* Body-layer slot indices used by getItemAtSlot / equipment[].
+ * Values confirmed from Script_getItemAtSlot and Script_getFreeHandSlot
+ * in wombat_exec.c. */
+enum EquipLayer {
+    EQUIP_RIGHT_HAND   =  1,  /* Primary weapon / right hand            */
+    EQUIP_LEFT_HAND    =  2,  /* Shield / secondary / left hand         */
+    EQUIP_SHOES        =  3,
+    EQUIP_PANTS        =  4,
+    EQUIP_SHIRT        =  5,
+    EQUIP_HELMET       =  6,
+    EQUIP_GLOVES       =  7,
+    EQUIP_RING         =  8,
+    /* slot 9 unused */
+    EQUIP_NECK         = 10,
+    EQUIP_HAIR         = 11,  /* 0x0B */
+    EQUIP_WAIST        = 12,
+    EQUIP_INNER_TORSO  = 13,
+    EQUIP_OUTER_TORSO  = 14,  /* Robe / surcoat                         */
+    EQUIP_BRACELET     = 15,
+    EQUIP_FACIAL_HAIR  = 16,  /* 0x10 */
+    EQUIP_MIDDLE_TORSO = 17,  /* Tunic / half apron                     */
+    EQUIP_EARRINGS     = 18,
+    EQUIP_ARMS         = 19,
+    EQUIP_CLOAK        = 20,
+    EQUIP_BACKPACK     = 21,  /* 0x15 — player/NPC main pack            */
+    EQUIP_OUTER_LEGS   = 22,
+    EQUIP_INNER_LEGS   = 23,
+    EQUIP_BEARD        = 24,
+    EQUIP_MOUNT        = 25,  /* 0x19 — mount / follower slot           */
+    EQUIP_NPC_SELL     = 26,  /* Vendor sell container                  */
+    EQUIP_NPC_BUY      = 27,  /* Vendor buy-list container              */
+    EQUIP_NPC_OFFERED  = 28,  /* Vendor offered-item container          */
+    EQUIP_BANK         = 29,  /* 0x1D — bank box                        */
+};
+
 /* GCM orchestrator server management events (gamecentmon.c).
  * Switched as eventType - 1. */
 enum GCMServerEventType {
