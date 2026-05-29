@@ -739,15 +739,15 @@ Combat_PlaySwingAnimation(CMobile *mob, CItem *weapon, CMobile *target)
 			} else {
 				int swingType = Combat_GetSwingAnimType(weapon);
 				switch (swingType) {
-				case 0:
+				case SWINGANIM_SLASH:
 					animId = 0x0D;
 					frameCount = 7;
 					break;
-				case 1:
+				case SWINGANIM_BACKHAND:
 					animId = 0x0C;
 					frameCount = 7;
 					break;
-				case 2:
+				case SWINGANIM_OVERHEAD:
 					animId = 0x0E;
 					frameCount = 7;
 					break;
@@ -756,15 +756,15 @@ Combat_PlaySwingAnimation(CMobile *mob, CItem *weapon, CMobile *target)
 		} else {
 			int swingType = Combat_GetSwingAnimType(weapon);
 			switch (swingType) {
-			case 0:
+			case SWINGANIM_SLASH:
 				animId = 0x09;
 				frameCount = 7;
 				break;
-			case 1:
+			case SWINGANIM_BACKHAND:
 				animId = 0x0B;
 				frameCount = 7;
 				break;
-			case 2:
+			case SWINGANIM_OVERHEAD:
 				animId = 0x0A;
 				frameCount = 7;
 				break;
@@ -1507,23 +1507,23 @@ CMobile_AdvanceSwingState(CMobile *mob)
 	windUpThreshold = windUpDelay > 4 ? windUpDelay - 4 : 0;
 
 	switch (mob->swingState) {
-	case 0:
+	case SWING_IDLE:
 		if ((int)mob->swingProgress >= windUpThreshold) {
-			mob->swingState = 1;
+			mob->swingState = SWING_WINDUP;
 			mob->swingProgress = (uint32_t)windUpThreshold;
 		}
 		break;
-	case 1:
+	case SWING_WINDUP:
 		if ((int)mob->swingProgress >= windUpDelay) {
-			mob->swingState = 2;
+			mob->swingState = SWING_READY;
 			mob->swingProgress = (uint32_t)windUpDelay;
 		}
 		break;
 	default:
 		if ((int)mob->swingProgress > totalDelay) {
-			mob->swingState = 0;
+			mob->swingState = SWING_IDLE;
 			mob->swingProgress = 0;
-			return 3;
+			return SWING_FIRED;
 		}
 		break;
 	}

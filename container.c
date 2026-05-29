@@ -668,30 +668,30 @@ CItem_GetContainerGump(CItem *item)
 	case 0x0990: // bank box
 	case 0x09AC: // metal chest (east)
 	case 0x09B1: // metal chest (south)
-		return 0x41;
+		return CGUMP_BANKBOX;
 	case 0x09A8: // metal box
 	case 0x0E80: // metal box (alt)
-		return 0x4B;
+		return CGUMP_METALBOX;
 	case 0x09A9: // wooden box (east)
 	case 0x0E3C: // large chest (east)
 	case 0x0E3D: // large chest (south)
 	case 0x0E3E: // large chest (east, alt)
 	case 0x0E3F: // large chest (south, alt)
 	case 0x0E7E: // large chest (alt)
-		return 0x44;
+		return CGUMP_LARGECHEST;
 	case 0x09AA: // wooden box (south)
 	case 0x0E7D: // wooden box (alt)
-		return 0x43;
+		return CGUMP_WOODBOX_SOUTH;
 	case 0x09AB: // metal chest (small)
 	case 0x0E7C: // metal chest (small, alt)
-		return 0x4A;
+		return CGUMP_METALCHEST_SMALL;
 	case 0x09B0: // backpack (alt east)
 	case 0x09B2: // backpack (alt south)
 	case 0x0E75: // backpack
 	case 0x0E79: // backpack (alt)
-		return 0x3C;
+		return CGUMP_BACKPACK;
 	case 0x0E76: // leather bag
-		return 0x3D;
+		return CGUMP_LEATHERBAG;
 	case 0x0E77: // barrel (small)
 	case 0x0E78: // barrel (small, alt)
 	case 0x0E7B: // bag (alt)
@@ -704,9 +704,9 @@ CItem_GetContainerGump(CItem *item)
 	case 0x1940: // dresser
 	case 0x1AD6: // pouch
 	case 0x1AD7: // pouch (alt)
-		return 0x3E;
+		return CGUMP_GENERIC;
 	case 0x0E7A: // keg
-		return 0x3F;
+		return CGUMP_KEG;
 	case 0x0A30: // chest of drawers (east)
 	case 0x0A31: // chest of drawers (east, alt)
 	case 0x0A32: // chest of drawers (south)
@@ -715,7 +715,7 @@ CItem_GetContainerGump(CItem *item)
 	case 0x0A39: // armoire (east, open)
 	case 0x0A3A: // armoire (south)
 	case 0x0A3B: // armoire (south, open)
-		return 0x48;
+		return CGUMP_ARMOIRE;
 	case 0x0A2C: // wooden chest (east)
 	case 0x0A2D: // wooden chest (east, alt)
 	case 0x0A2E: // wooden chest (south)
@@ -740,17 +740,17 @@ CItem_GetContainerGump(CItem *item)
 	case 0x0A49: // crate (small, alt)
 	case 0x0A4A: // crate (small)
 	case 0x0A4B: // crate (small, alt)
-		return 0x51;
+		return CGUMP_WOODCHEST;
 	case 0x0A4C: // fancy dresser (east)
 	case 0x0A4D: // fancy dresser (east, alt)
 	case 0x0A50: // fancy dresser (south)
 	case 0x0A51: // fancy dresser (south, alt)
-		return 0x4E;
+		return CGUMP_FANCYDRESSER_A;
 	case 0x0A4E: // fancy dresser (east, alt 2)
 	case 0x0A4F: // fancy dresser (east, alt 3)
 	case 0x0A52: // fancy dresser (south, alt 2)
 	case 0x0A53: // fancy dresser (south, alt 3)
-		return 0x4F;
+		return CGUMP_FANCYDRESSER_B;
 	case 0x0A97: // bookcase (east)
 	case 0x0A98: // bookcase (east, alt)
 	case 0x0A99: // bookcase (south)
@@ -759,29 +759,29 @@ CItem_GetContainerGump(CItem *item)
 	case 0x0A9C: // bookcase (south, full, alt)
 	case 0x0A9D: // bookcase (east, full)
 	case 0x0A9E: // bookcase (east, full, alt)
-		return 0x4D;
+		return CGUMP_BOOKCASE;
 	case 0x0E40: // medium crate (east)
 	case 0x0E41: // medium crate (east, alt)
-		return 0x42;
+		return CGUMP_MEDCRATE_EAST;
 	case 0x0E42: // medium crate (south)
 	case 0x0E43: // medium crate (south, alt)
-		return 0x49;
+		return CGUMP_MEDCRATE_SOUTH;
 	case 0x0E1C: // scroll case
 	case 0x0FAD: // scroll case (alt)
-		return 0x92E;
+		return CGUMP_SCROLLCASE;
 	case 0x0FA6: // game board (also used as spellbook container)
-		return 0x91A;
+		return CGUMP_SPELLBOOK;
 	case 0x1E5E: // coffin
-		return 0x52;
+		return CGUMP_COFFIN;
 	case 0x2AF8: // ship hold
-		return 0x47;
+		return CGUMP_SHIPHOLD;
 	case 0x3E65: // secure trade
 	case 0x3E93: // secure trade (alt)
 	case 0x3EAE: // secure trade
 	case 0x3EB9: // secure trade
-		return 0x4C;
+		return CGUMP_SECURETRADE;
 	default:
-		return 9;
+		return CGUMP_DEFAULT;
 	}
 }
 
@@ -799,135 +799,135 @@ CContainer_GetContainerBounds(CItem *container, int *minX, int *x, int *minY, in
 	gumpId = (int)(uint16_t)CItem_GetContainerGump(container);
 
 	switch (gumpId) {
-	case 0x07:
+	case CGUMP_UNKNOWN_07:
 		*minX = 0x1e;
 		*minY = 0x1e;
 		*x = 0x10e;
 		*y = 0xaa;
 		break;
-	case 0x09:
+	case CGUMP_DEFAULT:
 		*minX = 0x14;
 		*minY = 0x55;
 		*x = 0x7c;
 		*y = 0xc4;
 		break;
-	case 0x3C:
+	case CGUMP_BACKPACK:
 		*minX = 0x2c;
 		*minY = 0x41;
 		*x = 0xba;
 		*y = 0x9f;
 		break;
-	case 0x3D:
+	case CGUMP_LEATHERBAG:
 		*minX = 0x1d;
 		*minY = 0x22;
 		*x = 0x89;
 		*y = 0x80;
 		break;
-	case 0x3E:
+	case CGUMP_GENERIC:
 		*minX = 0x21;
 		*minY = 0x24;
 		*x = 0x8e;
 		*y = 0x94;
 		break;
-	case 0x3F:
+	case CGUMP_KEG:
 		*minX = 0x13;
 		*minY = 0x2f;
 		*x = 0xb6;
 		*y = 0x7b;
 		break;
-	case 0x40:
+	case CGUMP_UNKNOWN_40:
 		*minX = 0x10;
 		*minY = 0x26;
 		*x = 0x98;
 		*y = 0x7d;
 		break;
-	case 0x41:
+	case CGUMP_BANKBOX:
 		*minX = 0x23;
 		*minY = 0x26;
 		*x = 0x91;
 		*y = 0x74;
 		break;
-	case 0x42:
+	case CGUMP_MEDCRATE_EAST:
 		*minX = 0x12;
 		*minY = 0x69;
 		*x = 0xa2;
 		*y = 0xb2;
 		break;
-	case 0x43:
+	case CGUMP_WOODBOX_SOUTH:
 		*minX = 0x10;
 		*minY = 0x33;
 		*x = 0xb8;
 		*y = 0x7c;
 		break;
-	case 0x44:
+	case CGUMP_LARGECHEST:
 		*minX = 0x14;
 		*minY = 0x0a;
 		*x = 0xaa;
 		*y = 0x64;
 		break;
-	case 0x47:
+	case CGUMP_SHIPHOLD:
 		*minX = 0x10;
 		*minY = 0x0a;
 		*x = 0x94;
 		*y = 0x8a;
 		break;
-	case 0x48:
-	case 0x51:
+	case CGUMP_ARMOIRE:
+	case CGUMP_WOODCHEST:
 		*minX = 0x10;
 		*minY = 0x0a;
 		*x = 0x9a;
 		*y = 0x5e;
 		break;
-	case 0x49:
+	case CGUMP_MEDCRATE_SOUTH:
 		*minX = 0x12;
 		*minY = 0x69;
 		*x = 0xa2;
 		*y = 0xb2;
 		break;
-	case 0x4A:
+	case CGUMP_METALCHEST_SMALL:
 		*minX = 0x12;
 		*minY = 0x69;
 		*x = 0xa2;
 		*y = 0xb2;
 		break;
-	case 0x4B:
+	case CGUMP_METALBOX:
 		*minX = 0x10;
 		*minY = 0x33;
 		*x = 0xb8;
 		*y = 0x7c;
 		break;
-	case 0x4C:
+	case CGUMP_SECURETRADE:
 		*minX = 0x2e;
 		*minY = 0x4a;
 		*x = 0xc4;
 		*y = 0xb8;
 		break;
-	case 0x4D:
+	case CGUMP_BOOKCASE:
 		*minX = 0x4c;
 		*minY = 0x0c;
 		*x = 0x8c;
 		*y = 0x44;
 		break;
-	case 0x4E:
-	case 0x4F:
+	case CGUMP_FANCYDRESSER_A:
+	case CGUMP_FANCYDRESSER_B:
 		*minX = 0x18;
 		*minY = 0x60;
 		*x = 0xc4;
 		*y = 0x98;
 		break;
-	case 0x52:
+	case CGUMP_COFFIN:
 		*minX = 0;
 		*minY = 0;
 		*x = 0x6e;
 		*y = 0x3e;
 		break;
-	case 0x91A:
+	case CGUMP_SPELLBOOK:
 		*minX = 0x32;
 		*minY = 0x32;
 		*x = 0xe8;
 		*y = 0xb4;
 		break;
-	case 0x92E:
+	case CGUMP_SCROLLCASE:
 		*minX = 0x32;
 		*minY = 0x32;
 		*x = 0xe8;

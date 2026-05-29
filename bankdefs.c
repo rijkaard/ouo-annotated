@@ -354,7 +354,7 @@ CResBankSetMember_DumpInfo(CResBankSetMember *member, CResBankSet *parent, FILE 
 		parentType = parent->type;
 
 		switch (parentType) {
-		case 0: // WALL
+		case SET_TYPE_WALL: // WALL
 			if (strcasecmp(typeBuf, "NS(/)") == 0)
 				member->subtype = 0;
 			else if (strcasecmp(typeBuf, "EW(\\)") == 0)
@@ -371,7 +371,7 @@ CResBankSetMember_DumpInfo(CResBankSetMember *member, CResBankSet *parent, FILE 
 				member->subtype = 0xC;
 			break;
 
-		case 4: // ROOF
+		case SET_TYPE_ROOF: // ROOF
 			if (strcasecmp(typeBuf, "Piece_1") == 0)
 				member->subtype = 0;
 			else if (strcasecmp(typeBuf, "Piece_2") == 0)
@@ -410,7 +410,7 @@ CResBankSetMember_DumpInfo(CResBankSetMember *member, CResBankSet *parent, FILE 
 				member->subtype = 0x11;
 			break;
 
-		case 6: // COASTLINE
+		case SET_TYPE_COASTLINE: // COASTLINE
 			if (strcasecmp(typeBuf, "Bank_TL-BR") == 0)
 				member->subtype = 0;
 			else if (strcasecmp(typeBuf, "Bank_TR-BL") == 0)
@@ -449,7 +449,7 @@ CResBankSetMember_DumpInfo(CResBankSetMember *member, CResBankSet *parent, FILE 
 				member->subtype = 0x11;
 			break;
 
-		case 7: // TRANSITION
+		case SET_TYPE_TRANSITION: // TRANSITION
 			if (strcasecmp(typeBuf, "Tile_1") == 0)
 				member->subtype = 0;
 			else if (strcasecmp(typeBuf, "Tile_2") == 0)
