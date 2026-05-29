@@ -1750,57 +1750,57 @@ LoadDynamic0_ParseBlock(int blockIdx, char *data, int dataLen, CItem *recursiveP
 				typeChar += 0x20;
 
 			switch (typeChar) {
-			case 'b': {
+			case SAVE_BBOARD: {
 				CBulletinBoard *bb = calloc(1, sizeof(CBulletinBoard));
 				if (bb != NULL)
 					CBulletinBoard_Constructor(bb);
 				obj = (CItem *)bb;
 				break;
 			}
-			case 'c':
+			case SAVE_CONTAINER:
 				obj = calloc(1, sizeof(CContainer));
 				if (obj != NULL)
 					CContainer_Constructor((CContainer *)obj);
 				break;
-			case 'e':
+			case SAVE_EGG:
 				obj = CEgg_Constructor(calloc(1, sizeof(CItem)));
 				break;
-			case 'g': {
+			case SAVE_GUARD: {
 				CNPC *npc = calloc(1, sizeof(CNPC));
 				if (npc != NULL)
 					CGuard_Constructor(npc);
 				obj = (CItem *)npc;
 				break;
 			}
-			case 'm': {
+			case SAVE_MOBILE: {
 				CMobile *mob = calloc(1, sizeof(CMobile));
 				if (mob != NULL)
 					CMobile_Constructor(mob);
 				obj = (CItem *)mob;
 				break;
 			}
-			case 'n': {
+			case SAVE_NPC: {
 				CNPC *npc = calloc(1, sizeof(CNPC));
 				if (npc != NULL)
 					CResourceMobile_Init(&npc->mobile);
 				obj = (CItem *)npc;
 				break;
 			}
-			case 'p': {
+			case SAVE_PLAYER: {
 				CPlayer *player = calloc(1, sizeof(CPlayer));
 				if (player != NULL)
 					CPlayer_Constructor(player);
 				obj = (CItem *)player;
 				break;
 			}
-			case 's': {
+			case SAVE_SHOPKEEPER: {
 				CNPC *npc = calloc(1, sizeof(CNPC));
 				if (npc != NULL)
 					CShopkeeper_ConstructorNoArgs(npc);
 				obj = (CItem *)npc;
 				break;
 			}
-			case 'w':
+			case SAVE_WEAPON:
 				obj = calloc(1, sizeof(CContainer));
 				if (obj != NULL)
 					CWeapon_ConstructorFromItem(obj);
@@ -1812,7 +1812,7 @@ LoadDynamic0_ParseBlock(int blockIdx, char *data, int dataLen, CItem *recursiveP
 				obj = (CItem *)corpse;
 				break;
 			}
-			case 'z': {
+			case SAVE_SIGNPOST: {
 				CSignpost *sp = calloc(1, sizeof(CSignpost));
 				if (sp != NULL)
 					CSignpost_Constructor(sp);

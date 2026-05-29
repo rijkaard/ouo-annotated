@@ -82,7 +82,7 @@ AnimSequence_Process(uint8_t actionId)
 		data = cmd->data;
 
 		switch (cmd->type) {
-		case 0: // doLocAnimation: EFFECT type 2, single broadcast
+		case ANIMCMD_LOC_EFFECT: // doLocAnimation: EFFECT type 2, single broadcast
 			memcpy(&itemID, data, 4);
 			data += 4;
 			memcpy(&loc1, data, 6);
@@ -95,12 +95,12 @@ AnimSequence_Process(uint8_t actionId)
 			data += 4;
 			memcpy(&renderMode, data, 4);
 			data += 4;
-			PacketManager_MakePacket_EFFECT(effectBuf, 2, 0, 0, (uint16_t)itemID, loc1.x, loc1.y, (uint8_t)loc1.z, loc1.x, loc1.y, (uint8_t)loc1.z, (uint8_t)speed,
+			PacketManager_MakePacket_EFFECT(effectBuf, EFFECT_LOC_FIXED, 0, 0, (uint16_t)itemID, loc1.x, loc1.y, (uint8_t)loc1.z, loc1.x, loc1.y, (uint8_t)loc1.z, (uint8_t)speed,
 			        (uint8_t)duration, (uint8_t)hue, (uint8_t)renderMode, 1, 0);
 			SendPacketInRange(effectBuf, &loc1, 0x12);
 			break;
 
-		case 1: // doMobAnimation: EFFECT type 3, single broadcast
+		case ANIMCMD_MOB_EFFECT: // doMobAnimation: EFFECT type 3, single broadcast
 			memcpy(&serial, data, 4);
 			data += 4;
 			memcpy(&itemID, data, 4);
@@ -115,21 +115,21 @@ AnimSequence_Process(uint8_t actionId)
 			data += 4;
 			memcpy(&renderMode, data, 4);
 			data += 4;
-			PacketManager_MakePacket_EFFECT(effectBuf, 3, serial, 0, (uint16_t)itemID, loc1.x, loc1.y, (uint8_t)loc1.z, loc1.x, loc1.y, (uint8_t)loc1.z, (uint8_t)speed,
+			PacketManager_MakePacket_EFFECT(effectBuf, EFFECT_MOB_FIXED, serial, 0, (uint16_t)itemID, loc1.x, loc1.y, (uint8_t)loc1.z, loc1.x, loc1.y, (uint8_t)loc1.z, (uint8_t)speed,
 			        (uint8_t)duration, (uint8_t)hue, (uint8_t)renderMode, 1, 0);
 			SendPacketInRange(effectBuf, &loc1, 0x12);
 			break;
 
-		case 2: // doLightning: EFFECT type 1, single broadcast
+		case ANIMCMD_LIGHTNING: // doLightning: EFFECT type 1, single broadcast
 			memcpy(&serial, data, 4);
 			data += 4;
 			memcpy(&loc1, data, 6);
 			data += 6;
-			PacketManager_MakePacket_EFFECT(effectBuf, 1, serial, 0, 0, loc1.x, loc1.y, (uint8_t)loc1.z, loc1.x, loc1.y, (uint8_t)loc1.z, 0, 0, 0, 0, 0, 0);
+			PacketManager_MakePacket_EFFECT(effectBuf, EFFECT_LIGHTNING, serial, 0, 0, loc1.x, loc1.y, (uint8_t)loc1.z, loc1.x, loc1.y, (uint8_t)loc1.z, 0, 0, 0, 0, 0, 0);
 			SendPacketInRange(effectBuf, &loc1, 0x12);
 			break;
 
-		case 3: // doMissile_Loc2Loc: EFFECT type 0, dual broadcast
+		case ANIMCMD_MISSILE_LOC2LOC: // doMissile_Loc2Loc: EFFECT type 0, dual broadcast
 			memcpy(&loc1, data, 6);
 			data += 6;
 			memcpy(&loc2, data, 6);
@@ -142,12 +142,12 @@ AnimSequence_Process(uint8_t actionId)
 			data += 4;
 			memcpy(&hue, data, 4);
 			data += 4;
-			PacketManager_MakePacket_EFFECT(effectBuf, 0, 0, 0, (uint16_t)itemID, loc1.x, loc1.y, (uint8_t)loc1.z, loc2.x, loc2.y, (uint8_t)loc2.z, (uint8_t)speed, 0,
+			PacketManager_MakePacket_EFFECT(effectBuf, EFFECT_MISSILE, 0, 0, (uint16_t)itemID, loc1.x, loc1.y, (uint8_t)loc1.z, loc2.x, loc2.y, (uint8_t)loc2.z, (uint8_t)speed, 0,
 			        0, 0, (uint8_t)duration, (uint8_t)hue);
 			CPlayerList_BroadcastToTwoLocs(effectBuf, &loc1, &loc2, 0x12, NULL);
 			break;
 
-		case 4: // doMissile_Loc2Mob: EFFECT type 0, dual broadcast
+		case ANIMCMD_MISSILE_LOC2MOB: // doMissile_Loc2Mob: EFFECT type 0, dual broadcast
 			memcpy(&serial, data, 4);
 			data += 4;
 			memcpy(&itemID, data, 4);
@@ -162,12 +162,12 @@ AnimSequence_Process(uint8_t actionId)
 			data += 4;
 			memcpy(&hue, data, 4);
 			data += 4;
-			PacketManager_MakePacket_EFFECT(effectBuf, 0, 0, serial, (uint16_t)itemID, loc1.x, loc1.y, (uint8_t)loc1.z, loc2.x, loc2.y, (uint8_t)loc2.z, (uint8_t)speed,
+			PacketManager_MakePacket_EFFECT(effectBuf, EFFECT_MISSILE, 0, serial, (uint16_t)itemID, loc1.x, loc1.y, (uint8_t)loc1.z, loc2.x, loc2.y, (uint8_t)loc2.z, (uint8_t)speed,
 			        0, 0, 0, (uint8_t)duration, (uint8_t)hue);
 			CPlayerList_BroadcastToTwoLocs(effectBuf, &loc1, &loc2, 0x12, NULL);
 			break;
 
-		case 5: // doMissile_Mob2Loc: EFFECT type 0, dual broadcast
+		case ANIMCMD_MISSILE_MOB2LOC: // doMissile_Mob2Loc: EFFECT type 0, dual broadcast
 			memcpy(&serial, data, 4);
 			data += 4;
 			memcpy(&itemID, data, 4);
@@ -182,12 +182,12 @@ AnimSequence_Process(uint8_t actionId)
 			data += 4;
 			memcpy(&hue, data, 4);
 			data += 4;
-			PacketManager_MakePacket_EFFECT(effectBuf, 0, serial, 0, (uint16_t)itemID, loc1.x, loc1.y, (uint8_t)loc1.z, loc2.x, loc2.y, (uint8_t)loc2.z, (uint8_t)speed,
+			PacketManager_MakePacket_EFFECT(effectBuf, EFFECT_MISSILE, serial, 0, (uint16_t)itemID, loc1.x, loc1.y, (uint8_t)loc1.z, loc2.x, loc2.y, (uint8_t)loc2.z, (uint8_t)speed,
 			        0, 0, 0, (uint8_t)duration, (uint8_t)hue);
 			CPlayerList_BroadcastToTwoLocs(effectBuf, &loc1, &loc2, 0x12, NULL);
 			break;
 
-		case 6: // doMissile_Mob2Mob: EFFECT type 0, dual broadcast
+		case ANIMCMD_MISSILE_MOB2MOB: // doMissile_Mob2Mob: EFFECT type 0, dual broadcast
 			memcpy(&serial, data, 4);
 			data += 4;
 			memcpy(&serial2, data, 4);
@@ -204,12 +204,12 @@ AnimSequence_Process(uint8_t actionId)
 			data += 4;
 			memcpy(&hue, data, 4);
 			data += 4;
-			PacketManager_MakePacket_EFFECT(effectBuf, 0, serial, serial2, (uint16_t)itemID, loc1.x, loc1.y, (uint8_t)loc1.z, loc2.x, loc2.y, (uint8_t)loc2.z,
+			PacketManager_MakePacket_EFFECT(effectBuf, EFFECT_MISSILE, serial, serial2, (uint16_t)itemID, loc1.x, loc1.y, (uint8_t)loc1.z, loc2.x, loc2.y, (uint8_t)loc2.z,
 			        (uint8_t)speed, 0, 0, 0, (uint8_t)duration, (uint8_t)hue);
 			CPlayerList_BroadcastToTwoLocs(effectBuf, &loc1, &loc2, 0x12, NULL);
 			break;
 
-		case 7: // animateMobile: ANIM packet, single broadcast
+		case ANIMCMD_ANIMATE_MOBILE: // animateMobile: ANIM packet, single broadcast
 			memcpy(&serial, data, 4);
 			data += 4;
 			memcpy(&loc1, data, 6);
@@ -228,7 +228,7 @@ AnimSequence_Process(uint8_t actionId)
 			SendPacketInRange(animBuf, &loc1, 0x12);
 			break;
 
-		case 8: // sfx: PlaySoundAtLocation
+		case ANIMCMD_SFX: // sfx: PlaySoundAtLocation
 			memcpy(&loc1, data, 6);
 			data += 6;
 			memcpy(&soundID, data, 4);
@@ -238,7 +238,7 @@ AnimSequence_Process(uint8_t actionId)
 			PlaySoundAtLocation(&loc1, (uint16_t)soundID, (uint16_t)volume);
 			break;
 
-		case 9: // sfxTo: SendSoundToEntity
+		case ANIMCMD_SFX_TO: // sfxTo: SendSoundToEntity
 			memcpy(&entity, data, 4);
 			data += 4;
 			memcpy(&soundID, data, 4);

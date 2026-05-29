@@ -318,35 +318,35 @@ HandlePacket_GameCentMon(CPlayer *this, uint8_t *buf)
 		int caseIndex = byteTable[switchIndex];
 
 		switch (caseIndex) {
-		case 9:
+		case GCM_NPC_BROADCAST_9:
 			broadcastBuf[0] = (int32_t)this->mobile.container.item.serial;
 			broadcastBuf[1] = 9;
 			broadcastBuf[2] = 0;
 			GameCentMon_BroadcastEvent((char *)broadcastBuf, 0xC);
 			break;
 
-		case 4:
+		case GCM_NPC_BROADCAST_1:
 			broadcastBuf[0] = (int32_t)this->mobile.container.item.serial;
 			broadcastBuf[1] = 1;
 			broadcastBuf[2] = 0;
 			GameCentMon_BroadcastEvent((char *)broadcastBuf, 0xC);
 			break;
 
-		case 8:
+		case GCM_NPC_BROADCAST_8:
 			broadcastBuf[0] = (int32_t)this->mobile.container.item.serial;
 			broadcastBuf[1] = 8;
 			broadcastBuf[2] = 0;
 			GameCentMon_BroadcastEvent((char *)broadcastBuf, 0xC);
 			break;
 
-		case 7:
+		case GCM_NPC_BROADCAST_7:
 			broadcastBuf[0] = (int32_t)this->mobile.container.item.serial;
 			broadcastBuf[1] = 7;
 			broadcastBuf[2] = 0;
 			GameCentMon_BroadcastEvent((char *)broadcastBuf, 0xC);
 			break;
 
-		case 6: {
+		case GCM_NPC_DATA_PASSTHROUGH: {
 			numDwords = (int)(dataLen & 0xFFFF) / 4;
 			readCur = dataPtr;
 			writeCur = dataPtr;
@@ -362,7 +362,7 @@ HandlePacket_GameCentMon(CPlayer *this, uint8_t *buf)
 			break;
 		}
 
-		case 5:
+		case GCM_NPC_BROADCAST_DEATH:
 			broadcastBuf[0] = (int32_t)this->mobile.container.item.serial;
 			broadcastBuf[1] = 2;
 			broadcastBuf[2] = 0;
@@ -371,7 +371,7 @@ HandlePacket_GameCentMon(CPlayer *this, uint8_t *buf)
 			GameCentMon_BroadcastEvent((char *)broadcastBuf, 0xC);
 			break;
 
-		case 3:
+		case GCM_NPC_SELECT_TARGET:
 			if ((param1 & 0xFFFF) == 0xFF) {
 				GameCentMon_DeselectTarget(this);
 			} else {
@@ -379,7 +379,7 @@ HandlePacket_GameCentMon(CPlayer *this, uint8_t *buf)
 			}
 			break;
 
-		case 1: {
+		case GCM_NPC_TELEPORT: {
 			readCur = data;
 			teleX = ReadInt16LE(&readCur);
 			teleY = ReadInt16LE(&readCur);
@@ -394,8 +394,8 @@ HandlePacket_GameCentMon(CPlayer *this, uint8_t *buf)
 			break;
 		}
 
-		case 2:
-		case 0: {
+		case GCM_NPC_BROADCAST_SUBTYPE2:
+		case GCM_NPC_BROADCAST_SUBTYPE: {
 			int32_t allBuf[3];
 			allBuf[0] = (int32_t)this->mobile.container.item.serial;
 			allBuf[1] = subtype & 0xFF;

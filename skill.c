@@ -258,11 +258,11 @@ static int
 CSkillDef_GetStatWeight(CSkillDef *def, int statIndex)
 {
 	switch (statIndex) {
-	case 0:
+	case STAT_STR:
 		return def->strWeight;
-	case 1:
+	case STAT_DEX:
 		return def->dexWeight;
-	case 2:
+	case STAT_INT:
 		return def->intWeight;
 	default:
 		return 0;
@@ -280,11 +280,11 @@ static int
 CSkillDef_GetStatReq(CSkillDef *def, int statIndex)
 {
 	switch (statIndex) {
-	case 0:
+	case STAT_STR:
 		return def->strReq;
-	case 1:
+	case STAT_DEX:
 		return def->dexReq;
-	case 2:
+	case STAT_INT:
 		return def->intReq;
 	default:
 		return 0;

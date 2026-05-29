@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "enumerations.h"
+
 #include "egg.h"
 #include "entitymanager.h"
 #include "help_queue.h"
@@ -128,7 +130,7 @@ GetLandTileFlags(uint16_t tileID, int moveType)
 	result = 0x40;
 
 	switch (moveType) {
-	case 8:
+	case MOVETYPE_PASS_BOAT:
 		if (tileID >= 0x71 && tileID <= 0x78)
 			break;
 		if (tileID >= 0x09 && tileID <= 0x15)
@@ -136,23 +138,23 @@ GetLandTileFlags(uint16_t tileID, int moveType)
 		if (tileID >= 0x150 && tileID <= 0x15C)
 			break;
 		// FALLTHROUGH
-	case 0:
-	case 1:
-	case 2:
-	case 6:
+	case MOVETYPE_PASS_WALK:
+	case MOVETYPE_PASS_RUN:
+	case MOVETYPE_PASS_MOVE2:
+	case MOVETYPE_PASS_MOVE6:
 		if (!(tileFlags & 0x40))
 			result |= 0x0600;
 		break;
-	case 3:
-	case 4:
+	case MOVETYPE_PASS_GHOST:
+	case MOVETYPE_PASS_FLY:
 		if (tileFlags & 0x80)
 			result |= 0x0600;
 		break;
-	case 5:
+	case MOVETYPE_PASS_SWIM:
 		if (!(tileFlags & 0x40) || (tileFlags & 0x80))
 			result |= 0x0600;
 		break;
-	case 7:
+	case MOVETYPE_PASS_BLOCKED:
 		return 0x600;
 	default:
 		break;

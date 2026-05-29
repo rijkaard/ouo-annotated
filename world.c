@@ -148,21 +148,21 @@ CWorld_InitDecay(int mode)
 {
 	g_DecayScanPos = 0;
 	switch (mode) {
-	case 0:
+	case DECAY_NORMAL:
 		g_DecayInterval = 1;
 		g_DecayBucketsPerTick = 4;
 		g_DecayHomeRate = 0x70;
 		g_DecayIncrement = 0x70;
 		g_DecayMax = 0xFA;
 		break;
-	case 1:
+	case DECAY_FAST:
 		g_DecayInterval = 1;
 		g_DecayBucketsPerTick = 0x6D;
 		g_DecayMax = 0x48;
 		g_DecayHomeRate = 0x12;
 		g_DecayIncrement = 1;
 		break;
-	case 3:
+	case DECAY_INSTANT:
 		g_DecayInterval = 1;
 		g_DecayBucketsPerTick = 0x4000;
 		g_DecayMax = 3;

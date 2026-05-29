@@ -704,28 +704,28 @@ Script_trackingTypeSelected(CList *list, uint32_t serial, int trackType, int cat
 
 		// Append direction string to the name CString.
 		switch (dir) {
-		case 0:
+		case DIR_NORTH:
 			CString_AppendCStr(nameStr, " to the North.");
 			break;
-		case 1:
+		case DIR_NORTHEAST:
 			CString_AppendCStr(nameStr, " to the Northeast.");
 			break;
-		case 2:
+		case DIR_EAST:
 			CString_AppendCStr(nameStr, " to the East.");
 			break;
-		case 3:
+		case DIR_SOUTHEAST:
 			CString_AppendCStr(nameStr, " to the Southeast.");
 			break;
-		case 4:
+		case DIR_SOUTH:
 			CString_AppendCStr(nameStr, " to the South.");
 			break;
-		case 5:
+		case DIR_SOUTHWEST:
 			CString_AppendCStr(nameStr, " to the Southwest.");
 			break;
-		case 6:
+		case DIR_WEST:
 			CString_AppendCStr(nameStr, " to the West.");
 			break;
-		case 7:
+		case DIR_NORTHWEST:
 			CString_AppendCStr(nameStr, " to the Northwest.");
 			break;
 		default:
@@ -779,30 +779,30 @@ ResolveResultType(CScript *script, ResultNode *node, int *outFlag)
 	*outFlag = 0;
 
 	switch (node->type) {
-	case 0: /* handler result - calls GetVarType (thiscall on BuiltinHandlerEntry*) */
+	case WNODE_HANDLER_REF: /* handler result - calls GetVarType (thiscall on BuiltinHandlerEntry*) */
 		return GetVarType((const BuiltinHandlerEntry *)(uintptr_t)node->value);
-	case 1: { /* function ref - binary reads return type from script function table.
+	case WNODE_FUNC_CALL: { /* function ref - binary reads return type from script function table.
 		   * node->value is a function index; script+8 is the function list.
 		   * Binary: script->funcList.array + node->value*16, calls GetFuncRetType. */
 		CFunction *func = (CFunction *)((char *)script->funcList.array + (int)node->value * (int)sizeof(CFunction));
 		return GetFuncRetType(func);
 	}
-	case 2:   /* trigger var ref - reads typeId, flag stays 0 */
-	case 4: { /* local var ref - reads typeId, flag stays 0 */
+	case WNODE_TRIG_VAR_RVAL:   /* trigger var ref - reads typeId, flag stays 0 */
+	case WNODE_LOCAL_VAR_RVAL: { /* local var ref - reads typeId, flag stays 0 */
 		CNamedScopeEntry *var = (CNamedScopeEntry *)(uintptr_t)node->value;
 		return var->typeId;
 	}
-	case 3:   /* local var lvalue ref - sets flag=1, reads typeId */
-	case 5: { /* trigger var lvalue ref - sets flag=1, reads typeId */
+	case WNODE_LOCAL_VAR_LVAL:   /* local var lvalue ref - sets flag=1, reads typeId */
+	case WNODE_TRIG_VAR_LVAL: { /* trigger var lvalue ref - sets flag=1, reads typeId */
 		CNamedScopeEntry *var = (CNamedScopeEntry *)(uintptr_t)node->value;
 		*outFlag = 1;
 		return var->typeId;
 	}
-	case 6: /* integer literal */
+	case WNODE_INT_LITERAL: /* integer literal */
 		return WTYPE_INT;
 	case 7: /* string literal */
 		return WTYPE_STRING;
-	case 8: /* ustring literal */
+	case WNODE_USTRING_LITERAL: /* ustring literal */
 		return WTYPE_USTRING;
 	default:
 		return WTYPE_UNKNOWN;
@@ -827,40 +827,40 @@ CalcResultChainSize(CScript *script, ResultNode *chain)
 
 	while (chain != NULL) {
 		switch ((unsigned)chain->type) {
-		case 0: { /* handler result - GetVarType → typeId → size table */
+		case WNODE_HANDLER_REF: { /* handler result - GetVarType → typeId → size table */
 			int typeId = GetVarType((const BuiltinHandlerEntry *)(uintptr_t)chain->value);
 			size = g_WombatTypeSizes[typeId];
 			break;
 		}
-		case 1: { /* func call ref - GetFuncRetType → typeId → size table */
+		case WNODE_FUNC_CALL: { /* func call ref - GetFuncRetType → typeId → size table */
 			CFunction *func = (CFunction *)((char *)script->funcList.array + (int)chain->value * (int)sizeof(CFunction));
 			int typeId = GetFuncRetType(func);
 			size = g_WombatTypeSizes[typeId];
 			break;
 		}
-		case 2: /* trig var rvalue - reads typeId → size table */
-		case 4: { /* local var rvalue - reads typeId → size table */
+		case WNODE_TRIG_VAR_RVAL: /* trig var rvalue - reads typeId → size table */
+		case WNODE_LOCAL_VAR_RVAL: { /* local var rvalue - reads typeId → size table */
 			CNamedScopeEntry *var = (CNamedScopeEntry *)(uintptr_t)chain->value;
 			int typeId = var->typeId;
 			size = g_WombatTypeSizes[typeId];
 			break;
 		}
-		case 3: /* local lvalue */
-		case 5: { /* trig lvalue */
+		case WNODE_LOCAL_VAR_LVAL: /* local lvalue */
+		case WNODE_TRIG_VAR_LVAL: { /* trig lvalue */
 			size = 4;
 			break;
 		}
-		case 6: /* int literal */
+		case WNODE_INT_LITERAL: /* int literal */
 			size = sizeof(void *);
 			break;
-		case 7: /* string literal */
-		case 8: /* ustr/member */
+		case WNODE_STRING_LITERAL: /* string literal */
+		case WNODE_USTRING_LITERAL: /* ustr/member */
 			size = sizeof(void *);
 			break;
-		case 10: /* semi */
+		case WNODE_SEMI: /* semi */
 			size = sizeof(void *);
 			break;
-		case 9: /* goto label - no runtime data */
+		case WNODE_GOTO_LABEL: /* goto label - no runtime data */
 			size = 0;
 			break;
 		default: /* >10: size retains previous value (binary behavior) */
@@ -927,7 +927,7 @@ TreeEvaluator(CExecThread *thread)
 		goto advance;
 
 	switch (nodeType) {
-	case 0: { // handler reference
+	case WNODE_HANDLER_REF: { // handler reference
 		BuiltinHandlerEntry *handlerEntry;
 		handlerEntry = (BuiltinHandlerEntry *)(uintptr_t)((ResultNode *)thread->stream)->value;
 		if (wasHandler) {
@@ -963,7 +963,7 @@ TreeEvaluator(CExecThread *thread)
 		goto advance;
 	}
 
-	case 1: // script function call
+	case WNODE_FUNC_CALL: // script function call
 		if (wasHandler) {
 			// Returning from arg evaluation: check expected size
 			calcSize = (int)thread->rstack.arr[thread->rstack.count - 1];
@@ -989,7 +989,7 @@ TreeEvaluator(CExecThread *thread)
 		thread->stream = (char *)((ResultNode *)thread->stream)->extra;
 		return 1;
 
-	case 2: { // trigger var rvalue
+	case WNODE_TRIG_VAR_RVAL: { // trigger var rvalue
 		int typeSize;
 		varDef = (CNamedScopeEntry *)(uintptr_t)((ResultNode *)thread->stream)->value;
 		addr = (intptr_t)CNodeList_Peek(&thread->hstack) + varDef->offset;
@@ -1005,7 +1005,7 @@ TreeEvaluator(CExecThread *thread)
 		goto advance;
 	}
 
-	case 3: { // local var lvalue
+	case WNODE_LOCAL_VAR_LVAL: { // local var lvalue
 		int typeSize;
 		varDef = (CNamedScopeEntry *)(uintptr_t)((ResultNode *)thread->stream)->value;
 		addr = (intptr_t)CNodeList_Peek(&thread->hstack) + varDef->offset;
@@ -1021,8 +1021,8 @@ TreeEvaluator(CExecThread *thread)
 		goto advance;
 	}
 
-	case 4: // local var rvalue
-	case 5: { // trigger var lvalue (rvalue access)
+	case WNODE_LOCAL_VAR_RVAL: // local var rvalue
+	case WNODE_TRIG_VAR_LVAL: { // trigger var lvalue (rvalue access)
 		int typeSize;
 		char *base;
 		varDef = (CNamedScopeEntry *)(uintptr_t)((ResultNode *)thread->stream)->value;
@@ -1039,14 +1039,14 @@ TreeEvaluator(CExecThread *thread)
 		goto advance;
 	}
 
-	case 6: // int literal
-	case 7: // string literal
-	case 8: // ustring/member ref
-	case 10: // semi result
+	case WNODE_INT_LITERAL: // int literal
+	case WNODE_STRING_LITERAL: // string literal
+	case WNODE_USTRING_LITERAL: // ustring/member ref
+	case WNODE_SEMI: // semi result
 		CScope_PushValue(&thread->scope, &((ResultNode *)thread->stream)->value, sizeof(void *));
 		goto advance;
 
-	case 9: // goto label - no runtime data
+	case WNODE_GOTO_LABEL: // goto label - no runtime data
 	default:
 		break;
 	}
@@ -1363,17 +1363,17 @@ DispatchHandler(CExecThread *thread, const BuiltinHandlerEntry *handler)
 			slot[paramCount].typeId = subType;
 
 			switch (subType) {
-			case 0: // int
-			case 4: // obj
+			case WTYPE_INT: // int
+			case WTYPE_OBJ: // obj
 				slot[paramCount].addr = 0;
 				CScope_StoreValue(&thread->scope, &slot[paramCount].addr, sizeof(void *));
 				break;
-			case 1: // string
-			case 2: // ustring
-			case 5: // list
+			case WTYPE_STRING: // string
+			case WTYPE_USTRING: // ustring
+			case WTYPE_LIST: // list
 				CScope_StoreValue(&thread->scope, &slot[paramCount].addr, sizeof(void *));
 				break;
-			case 3: // location (6 bytes)
+			case WTYPE_LOC: // location (6 bytes)
 				CScope_StoreValue(&thread->scope, &slot[paramCount].value, 6);
 				slot[paramCount].addr = (uintptr_t)&slot[paramCount].value;
 				break;
@@ -1414,73 +1414,73 @@ DispatchHandler(CExecThread *thread, const BuiltinHandlerEntry *handler)
 	// Section 4: 170-case dispatch switch on handler->opcode
 	opcode = handler->opcode;
 	switch (opcode) {
-	case 0:
+	case HCALL_VOID_0:
 		((uintptr_t (*)(void))handler->handler)();
 		break;
-	case 1:
+	case HCALL_RET_0:
 		retObj = ((uintptr_t (*)(void))handler->handler)();
 		break;
-	case 2:
+	case HCALL_VOID_1V:
 		((uintptr_t (*)(uintptr_t))handler->handler)(slot[1].value);
 		break;
-	case 3:
+	case HCALL_VOID_2V:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 4:
+	case HCALL_VOID_1A:
 		((uintptr_t (*)(uintptr_t))handler->handler)((uintptr_t)&slot[1].value);
 		break;
-	case 5:
+	case HCALL_VOID_1A_1V:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value);
 		break;
-	case 6:
+	case HCALL_VOID_1A_1V_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value);
 		break;
-	case 7:
+	case HCALL_VOID_1V_b:
 		((uintptr_t (*)(uintptr_t))handler->handler)(slot[1].value);
 		break;
-	case 8:
+	case HCALL_VOID_1V_c:
 		((uintptr_t (*)(uintptr_t))handler->handler)(slot[1].value);
 		break;
-	case 9:
-	case 11:
+	case HCALL_VOID_2V_b:
+	case HCALL_VOID_2V_d:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 10:
+	case HCALL_VOID_2V_c:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 12:
+	case HCALL_VOID_2V_e:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 13:
+	case HCALL_VOID_2V_f:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 14:
+	case HCALL_VOID_1A_1V_c:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value);
 		break;
-	case 15:
+	case HCALL_VOID_2A:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, (uintptr_t)&slot[2].value);
 		break;
-	case 16:
+	case HCALL_VOID_2V_g:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 17:
+	case HCALL_VOID_7V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value, slot[7].value);
 		break;
-	case 18:
+	case HCALL_VOID_6V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value);
 		break;
-	case 19:
+	case HCALL_VOID_1A_3V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 20:
+	case HCALL_RET_1V:
 		retObj = ((uintptr_t (*)(uintptr_t))handler->handler)(slot[1].value);
 		break;
-	case 21:
+	case HCALL_RET_2V:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 23:
+	case HCALL_RET_2V_b:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
 	case 24: {
@@ -1503,7 +1503,7 @@ DispatchHandler(CExecThread *thread, const BuiltinHandlerEntry *handler)
 		ret = ((uintptr_t (*)(void *, uintptr_t, uintptr_t))handler->handler)(tmpLoc, slot[1].value, slot[2].value);
 		CLocation_SetLoc((CLocation *)&retObj, (CLocation *)(uintptr_t)ret);
 	} break;
-	case 27:
+	case HCALL_RET_2V_c:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
 	case 28: {
@@ -1519,138 +1519,138 @@ DispatchHandler(CExecThread *thread, const BuiltinHandlerEntry *handler)
 		ret = ((uintptr_t (*)(void *, uintptr_t, uintptr_t))handler->handler)(tmpLoc, slot[1].value, slot[2].value);
 		CLocation_SetLoc((CLocation *)&retObj, (CLocation *)(uintptr_t)ret);
 	} break;
-	case 30:
+	case HCALL_RET_2V_d:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 31:
+	case HCALL_VOID_TYPEDPAIR_1V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].typeId, slot[2].addr);
 		break;
-	case 32:
+	case HCALL_VOID_TYPEDPAIR_2V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].typeId, slot[2].addr, slot[3].value);
 		break;
-	case 33:
+	case HCALL_RET_2V_e:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 34:
+	case HCALL_RET_1V_b:
 		retObj = ((uintptr_t (*)(uintptr_t))handler->handler)(slot[1].value);
 		break;
-	case 35:
+	case HCALL_RET_TYPEDPAIR:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].typeId, slot[2].addr);
 		break;
-	case 36:
+	case HCALL_VOID_2V_h:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 37:
+	case HCALL_VOID_2V_i:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 38:
+	case HCALL_VOID_2V_j:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 39:
+	case HCALL_RET_1V_1A:
 #ifdef DEBUG_TELEPORT
 		fprintf(stderr, "CASE39: handler=%s sig=%s slot1=0x%X slot2=0x%X,%X,%X\n", handler->name, handler->typeSig, slot[1].value, slot[2].value, slot[2].field4,
 		        slot[2].addr);
 #endif
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value);
 		break;
-	case 40:
+	case HCALL_RET_1V_1A_1V:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value, slot[3].value);
 		break;
-	case 41:
+	case HCALL_VOID_1V_1A_1V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value, slot[3].value);
 		break;
-	case 42:
+	case HCALL_VOID_1V_1A_2V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 43:
+	case HCALL_RET_1V_c:
 		retObj = ((uintptr_t (*)(uintptr_t))handler->handler)(slot[1].value);
 		break;
-	case 44:
+	case HCALL_RET_1V_d:
 		retObj = ((uintptr_t (*)(uintptr_t))handler->handler)(slot[1].value);
 		break;
-	case 45:
+	case HCALL_RET_2V_f:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 46:
+	case HCALL_RET_3V:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 47:
+	case HCALL_RET_3V_b:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 48:
+	case HCALL_VOID_3V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 49:
+	case HCALL_RET_2V_g:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 50:
+	case HCALL_VOID_2V_k:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 51:
+	case HCALL_VOID_3V_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 52:
+	case HCALL_VOID_4V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 53:
+	case HCALL_VOID_5V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value);
 		break;
-	case 54:
+	case HCALL_VOID_1V_4A:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, (uintptr_t)&slot[2].value, (uintptr_t)&slot[3].value, (uintptr_t)&slot[4].value, (uintptr_t)&slot[5].value);
 		break;
-	case 55:
+	case HCALL_VOID_6V_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value);
 		break;
-	case 56:
+	case HCALL_VOID_8V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value, slot[7].value, slot[8].value);
 		break;
-	case 57:
+	case HCALL_VOID_1A_2V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 58:
+	case HCALL_RET_1A_1V:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value);
 		break;
-	case 59:
+	case HCALL_RET_1A_2V:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 60:
+	case HCALL_RET_1A_4V:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        (uintptr_t)&slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value);
 		break;
-	case 61:
+	case HCALL_RET_1A_3V:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 62:
+	case HCALL_RET_1A_4V_b:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        (uintptr_t)&slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value);
 		break;
-	case 63:
+	case HCALL_RET_1A_5V:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        (uintptr_t)&slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value);
 		break;
-	case 64:
+	case HCALL_RET_1A_2V_b:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 65:
+	case HCALL_RET_1A_1V_3A_3V:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        (uintptr_t)&slot[1].value, slot[2].value, slot[3].value, slot[4].value, (uintptr_t)&slot[5].value, slot[6].value, slot[7].value, slot[8].value);
 		break;
-	case 66:
+	case HCALL_RET_3V_c:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 67:
+	case HCALL_RET_3V_d:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 68:
+	case HCALL_RET_4V:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 69:
+	case HCALL_VOID_1A_1V_d:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value);
 		break;
-	case 70:
+	case HCALL_RET_2A:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, (uintptr_t)&slot[2].value);
 		break;
 	case 71: {
@@ -1659,25 +1659,25 @@ DispatchHandler(CExecThread *thread, const BuiltinHandlerEntry *handler)
 		ret = ((uintptr_t (*)(void *, uintptr_t, uintptr_t))handler->handler)(tmpLoc, (uintptr_t)&slot[1].value, (uintptr_t)&slot[2].value);
 		CLocation_SetLoc((CLocation *)&retObj, (CLocation *)(uintptr_t)ret);
 	} break;
-	case 72:
+	case HCALL_VOID_2V_l:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 73:
+	case HCALL_VOID_2V_m:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 74:
+	case HCALL_RET_2V_h:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 75:
+	case HCALL_VOID_3V_c:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 76:
+	case HCALL_VOID_3V_d:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 77:
+	case HCALL_VOID_4V_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 78:
+	case HCALL_RET_3V_e:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
 	case 79: {
@@ -1692,40 +1692,40 @@ DispatchHandler(CExecThread *thread, const BuiltinHandlerEntry *handler)
 		((void (*)(void *, uintptr_t))handler->handler)(tmpLoc, slot[1].value);
 		CLocation_SetLoc((CLocation *)&retObj, (CLocation *)tmpLoc);
 	} break;
-	case 81:
+	case HCALL_VOID_1V_e:
 		((uintptr_t (*)(uintptr_t))handler->handler)(slot[1].value);
 		break;
-	case 82:
+	case HCALL_VOID_2V_n:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 83:
+	case HCALL_RET_0_b:
 		retObj = ((uintptr_t (*)(void))handler->handler)();
 		break;
-	case 84:
+	case HCALL_VOID_2V_o:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 85:
+	case HCALL_RET_1A_b:
 		retObj = ((uintptr_t (*)(uintptr_t))handler->handler)((uintptr_t)&slot[1].value);
 		break;
-	case 86:
+	case HCALL_VOID_1A_b:
 		((uintptr_t (*)(uintptr_t))handler->handler)((uintptr_t)&slot[1].value);
 		break;
-	case 87:
+	case HCALL_VOID_1V_1A_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value);
 		break;
-	case 88:
+	case HCALL_VOID_1V_1A_1V_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value, slot[3].value);
 		break;
-	case 89:
+	case HCALL_RET_1V_1A_2V:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 90:
+	case HCALL_VOID_1V_1A_2V_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 91:
+	case HCALL_RET_3V_f:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 92:
+	case HCALL_RET_4V_b:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
 	case 93: {
@@ -1749,82 +1749,82 @@ DispatchHandler(CExecThread *thread, const BuiltinHandlerEntry *handler)
 		CString_Assign((void *)(uintptr_t)retObj, (void *)(uintptr_t)ret);
 		CString_Destructor((CString *)tmpStr);
 	} break;
-	case 96:
+	case HCALL_VOID_7V_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value, slot[7].value);
 		break;
-	case 97:
+	case HCALL_RET_1V_e:
 		retObj = ((uintptr_t (*)(uintptr_t))handler->handler)(slot[1].value);
 		break;
-	case 98:
+	case HCALL_RET_2V_i:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 99:
+	case HCALL_VOID_2V_p:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 100:
+	case HCALL_VOID_4V_1A:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, slot[3].value, slot[4].value, (uintptr_t)&slot[5].value);
 		break;
-	case 101:
+	case HCALL_VOID_3V_e:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 102:
+	case HCALL_VOID_3V_f:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 103:
+	case HCALL_VOID_1A_2V_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 104:
+	case HCALL_VOID_5V_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value);
 		break;
-	case 105:
+	case HCALL_RET_4V_c:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 106:
+	case HCALL_VOID_1A_3V_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 107:
+	case HCALL_VOID_2V_TYPEDPAIR:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].typeId, slot[3].addr);
 		break;
-	case 108:
+	case HCALL_RET_2V_TYPEDPAIR:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].typeId, slot[3].addr);
 		break;
-	case 110:
+	case HCALL_RET_1V_f:
 		retObj = ((uintptr_t (*)(uintptr_t))handler->handler)(slot[1].value);
 		break;
-	case 111:
+	case HCALL_RET_2V_j:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 112:
+	case HCALL_RET_2V_k:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
-	case 113:
+	case HCALL_RET_1V_1A_c:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value);
 		break;
-	case 114:
+	case HCALL_VOID_2A_2V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, (uintptr_t)&slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 115:
+	case HCALL_VOID_4V_1A_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, slot[3].value, slot[4].value, (uintptr_t)&slot[5].value);
 		break;
-	case 116:
+	case HCALL_VOID_4V_b2:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 117:
+	case HCALL_VOID_4V_c:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 118:
+	case HCALL_VOID_4V_d:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 119:
+	case HCALL_VOID_4V_e:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 120:
+	case HCALL_VOID_4V_f:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 121:
+	case HCALL_RET_3V_g:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
 	case 122: {
@@ -1843,10 +1843,10 @@ DispatchHandler(CExecThread *thread, const BuiltinHandlerEntry *handler)
 		CUString_AssignStr((void *)(uintptr_t)retObj, s);
 		CString_Destructor((CString *)tmpStr);
 	} break;
-	case 124:
+	case HCALL_VOID_1V_1A_c:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value);
 		break;
-	case 125:
+	case HCALL_RET_2V_l:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value);
 		break;
 	case 126: {
@@ -1856,83 +1856,83 @@ DispatchHandler(CExecThread *thread, const BuiltinHandlerEntry *handler)
 		CString_Assign((void *)(uintptr_t)retObj, (void *)(uintptr_t)ret);
 		CString_Destructor((CString *)tmpStr);
 	} break;
-	case 127:
+	case HCALL_VOID_3V_g:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 128:
+	case HCALL_VOID_1A_1V_e:
 		((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value);
 		break;
-	case 129:
+	case HCALL_RET_1A_2V_c:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 130:
+	case HCALL_RET_1A_1V_b:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value);
 		break;
-	case 131:
+	case HCALL_RET_1V_1A_d:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value);
 		break;
-	case 132:
+	case HCALL_VOID_3V_h:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 133:
+	case HCALL_VOID_2A_4V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        (uintptr_t)&slot[1].value, (uintptr_t)&slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value);
 		break;
-	case 134:
+	case HCALL_VOID_1A_5V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        (uintptr_t)&slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value);
 		break;
-	case 135:
+	case HCALL_VOID_1V_1A_4V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, (uintptr_t)&slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value);
 		break;
-	case 136:
+	case HCALL_VOID_6V_c:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value);
 		break;
-	case 137:
+	case HCALL_VOID_4V_g:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 138:
+	case HCALL_VOID_5V_c:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value);
 		break;
-	case 139:
+	case HCALL_VOID_8V_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value, slot[7].value, slot[8].value);
 		break;
-	case 140:
+	case HCALL_VOID_1A_5V_b:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        (uintptr_t)&slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value);
 		break;
-	case 141:
+	case HCALL_RET_3V_h:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 142:
+	case HCALL_RET_1A_4V_c:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        (uintptr_t)&slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value);
 		break;
-	case 143:
+	case HCALL_RET_1A_6V:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        (uintptr_t)&slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value, slot[7].value);
 		break;
-	case 144:
+	case HCALL_RET_5V:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value);
 		break;
-	case 145:
+	case HCALL_RET_1A_1V_c:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value);
 		break;
-	case 146:
+	case HCALL_RET_1A_2V_d:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 147:
+	case HCALL_RET_3V_i:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 148:
+	case HCALL_VOID_5V_1A_3V:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value, (uintptr_t)&slot[6].value, slot[7].value, slot[8].value, slot[9].value);
 		break;
-	case 149:
+	case HCALL_RET_COMPLEX_11:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, (uintptr_t)&slot[3].value, (uintptr_t)&slot[4].value, (uintptr_t)&slot[5].value, slot[6].value, slot[7].value,
 		        (uintptr_t)&slot[8].value, (uintptr_t)&slot[9].value, slot[10].value, (uintptr_t)&slot[11].value);
@@ -1951,63 +1951,63 @@ DispatchHandler(CExecThread *thread, const BuiltinHandlerEntry *handler)
 		CString_Assign((void *)(uintptr_t)retObj, (void *)(uintptr_t)ret);
 		CString_Destructor((CString *)tmpStr);
 	} break;
-	case 152:
+	case HCALL_RET_1V_3A:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, (uintptr_t)&slot[2].value, (uintptr_t)&slot[3].value, (uintptr_t)&slot[4].value);
 		break;
-	case 153:
+	case HCALL_VOID_3V_i:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 154:
+	case HCALL_VOID_6V_d:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value, slot[6].value);
 		break;
-	case 155:
+	case HCALL_VOID_2V_2A_1V_1A:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, (uintptr_t)&slot[3].value, (uintptr_t)&slot[4].value, slot[5].value, (uintptr_t)&slot[6].value);
 		break;
-	case 156:
+	case HCALL_RET_5V_b:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, slot[2].value, slot[3].value, slot[4].value, slot[5].value);
 		break;
-	case 157:
+	case HCALL_RET_1V_2A:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value, (uintptr_t)&slot[3].value);
 		break;
-	case 158:
+	case HCALL_RET_1V_1A_1V_1A:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(
 		        slot[1].value, (uintptr_t)&slot[2].value, slot[3].value, (uintptr_t)&slot[4].value, slot[5].value);
 		break;
-	case 159:
+	case HCALL_VOID_4V_h:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 160:
+	case HCALL_VOID_3V_j:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 161:
+	case HCALL_VOID_3V_k:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value);
 		break;
-	case 162:
+	case HCALL_VOID_4V_i:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 163:
+	case HCALL_RET_1V_1A_1V_b:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value, slot[3].value);
 		break;
-	case 164:
+	case HCALL_RET_1A_c:
 		retObj = ((uintptr_t (*)(uintptr_t))handler->handler)((uintptr_t)&slot[1].value);
 		break;
-	case 165:
+	case HCALL_RET_1V_1A_1V_c:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value, slot[3].value);
 		break;
-	case 166:
+	case HCALL_RET_1V_1A_e:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t))handler->handler)(slot[1].value, (uintptr_t)&slot[2].value);
 		break;
-	case 167:
+	case HCALL_VOID_4V_j:
 		((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 168:
+	case HCALL_RET_1A_3V_b:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)((uintptr_t)&slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
-	case 169:
+	case HCALL_RET_4V_d:
 		retObj = ((uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t))handler->handler)(slot[1].value, slot[2].value, slot[3].value, slot[4].value);
 		break;
 	case 22:
@@ -2057,20 +2057,20 @@ DispatchHandler(CExecThread *thread, const BuiltinHandlerEntry *handler)
 	// Section 6: Return dispatch
 	// Push return value to scope based on return type
 	switch (retType) {
-	case 0: // int/obj
+	case WTYPE_INT: // int/obj
 		tmp = retObj;
 		CScope_PushValue(&thread->scope, &tmp, sizeof(void *));
 		break;
-	case 1: // string - push CString
+	case WTYPE_STRING: // string - push CString
 		CScope_PushCString(&thread->scope, retObj);
 		break;
-	case 2: // ustring - push CUString
+	case WTYPE_USTRING: // ustring - push CUString
 		CScope_PushCUString(&thread->scope, retObj);
 		break;
-	case 3: // location - push 6-byte value
+	case WTYPE_LOC: // location - push 6-byte value
 		CScope_PushValue(&thread->scope, &retObj, 6);
 		break;
-	case 4: // same as case 0
+	case WTYPE_OBJ: // same as case 0
 		tmp = retObj;
 		CScope_PushValue(&thread->scope, &tmp, sizeof(void *));
 		break;
@@ -3475,13 +3475,13 @@ Script_sortList(CList *list, int flags)
 	sortType = flags & ~1;
 
 	switch (sortType) {
-	case 0:
+	case SORT_INT:
 		cmpfn = sortList_cmpInt;
 		break;
-	case 2:
+	case SORT_STRING:
 		cmpfn = sortList_cmpStr;
 		break;
-	case 4:
+	case SORT_OBJ:
 		cmpfn = sortList_cmpObj;
 		break;
 	default:
@@ -4741,13 +4741,13 @@ Script_setArrayElems(int id, int x, int y, CList *list)
 	node = list->head;
 	while (node != NULL) {
 		switch (node->typeTag) {
-		case 0:
+		case WARRAY_TYPE_INT:
 			CArray_SetIntElem(arr, x, y, node->value);
 			break;
-		case 1:
+		case WARRAY_TYPE_STR:
 			CArray_SetStrElem(arr, x, y, (void *)(uintptr_t)node->value);
 			break;
-		case 2:
+		case WARRAY_TYPE_USTR:
 			CArray_SetUStrElem(arr, x, y, (void *)(uintptr_t)node->value);
 			break;
 		default:
@@ -6156,9 +6156,9 @@ printList_recursive(CList *list, int depth)
 		printList_delayLoop(depth);
 
 		switch ((int)cur->typeTag) {
-		case 0:
+		case WTYPE_INT:
 			break;
-		case 5:
+		case WTYPE_LIST:
 			printList_recursive((CList *)(uintptr_t)cur->value, depth + 1);
 			break;
 		}
@@ -7501,28 +7501,28 @@ Script_getDirection(CString *dest, CLocation *loc1, CLocation *loc2)
 
 	dir = CalcDirection(loc1, loc2);
 	switch (dir) {
-	case 0:
+	case DIR_NORTH:
 		CString_Constructor(dest, "to the north");
 		break;
-	case 1:
+	case DIR_NORTHEAST:
 		CString_Constructor(dest, "to the northeast");
 		break;
-	case 2:
+	case DIR_EAST:
 		CString_Constructor(dest, "to the east");
 		break;
-	case 3:
+	case DIR_SOUTHEAST:
 		CString_Constructor(dest, "to the southeast");
 		break;
-	case 4:
+	case DIR_SOUTH:
 		CString_Constructor(dest, "to the south");
 		break;
-	case 5:
+	case DIR_SOUTHWEST:
 		CString_Constructor(dest, "to the southwest");
 		break;
-	case 6:
+	case DIR_WEST:
 		CString_Constructor(dest, "to the west");
 		break;
-	case 7:
+	case DIR_NORTHWEST:
 		CString_Constructor(dest, "to the northwest");
 		break;
 	default:
@@ -7568,22 +7568,22 @@ Script_getDistance(CString *dest, CLocation *loc1, CLocation *loc2)
 	}
 
 	switch (distTable[idx]) {
-	case 0:
+	case DIST_HERE:
 		CString_Constructor(dest, "right here");
 		break;
-	case 1:
+	case DIST_SHORT:
 		CString_Constructor(dest, "just a short way");
 		break;
-	case 2:
+	case DIST_WAYS:
 		CString_Constructor(dest, "a ways");
 		break;
-	case 3:
+	case DIST_FAIR:
 		CString_Constructor(dest, "a fair distance");
 		break;
-	case 4:
+	case DIST_LONG:
 		CString_Constructor(dest, "a long way");
 		break;
-	case 5:
+	case DIST_QUITE_LONG:
 		CString_Constructor(dest, "quite a long distance");
 		break;
 	default:
@@ -9591,10 +9591,10 @@ Script_getHeShe(CString *out, uint32_t serial)
 
 	sex = Script_getSex(serial);
 	switch (sex) {
-	case 0:
+	case SEX_MALE:
 		CString_Constructor(out, "he");
 		break;
-	case 1:
+	case SEX_FEMALE:
 		CString_Constructor(out, "she");
 		break;
 	default:
@@ -9617,7 +9617,7 @@ Script_getHimHer(CString *out, uint32_t serial)
 
 	sex = Script_getSex(serial);
 	switch (sex) {
-	case 0:
+	case SEX_MALE:
 		CString_Constructor(out, "him");
 		break;
 	case 1:
@@ -9643,7 +9643,7 @@ Script_getHisHer(CString *out, uint32_t serial)
 
 	sex = Script_getSex(serial);
 	switch (sex) {
-	case 0:
+	case SEX_MALE:
 		CString_Constructor(out, "his");
 		break;
 	case 1:
@@ -10546,11 +10546,11 @@ Script_getStatAttributeMax(uint32_t serial, int statId)
 		return 0;
 	mob = (CMobile *)ent;
 	switch (statId) {
-	case 0:
+	case STAT_MAX_HP:
 		return (int)CMobile_GetMaxHp(mob);
-	case 1:
+	case STAT_MAX_STAMINA:
 		return (int)CMobile_GetMaxStamina(mob);
-	case 2:
+	case STAT_MAX_MANA:
 		return (int)CMobile_GetMaxMana(mob);
 	default:
 		return 0;
@@ -10574,11 +10574,11 @@ Script_setStatAttributeMax(uint32_t serial, int statId, int value)
 		return 0;
 	mob = (CMobile *)ent;
 	switch (statId) {
-	case 0:
+	case STAT_MAX_HP:
 		return ((int (*)(void *, int))VT_FN(ent, VT_SET_MAX_HP))(mob, value);
-	case 1:
+	case STAT_MAX_STAMINA:
 		return ((int (*)(void *, int))VT_FN(ent, VT_SET_MAX_STAMINA))(mob, value);
-	case 2:
+	case STAT_MAX_MANA:
 		return ((int (*)(void *, int))VT_FN(ent, VT_SET_MAX_MANA))(mob, value);
 	default:
 		return 0;
@@ -14649,16 +14649,16 @@ Script_getResourceName(CString *outStr, CString *inStr, int resId)
 	resDef = CResourceTypeManager_FindByName(CString_GetCStr(inStr));
 	if (resDef != NULL && (unsigned int)resId <= 3) {
 		switch (resId) {
-		case 0:
+		case RESNAME_FOOD:
 			CString_AssignCStr((CString *)tmpStr, CResourceType_GetFoodName(resDef));
 			break;
-		case 1:
+		case RESNAME_1:
 			CString_AssignCStr((CString *)tmpStr, CResourceType_GetName1(resDef));
 			break;
-		case 2:
+		case RESNAME_2:
 			CString_AssignCStr((CString *)tmpStr, CResourceType_GetName2(resDef));
 			break;
-		case 3:
+		case RESNAME_3:
 			CString_AssignCStr((CString *)tmpStr, CResourceType_GetName3(resDef));
 			break;
 		}

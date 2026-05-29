@@ -1,6 +1,8 @@
 #ifndef DAT_H_
 #define DAT_H_
 
+#include "enumerations.h"
+
 #define USED(x)  ((void)(x))
 #define nelem(x) (sizeof(x) / sizeof((x)[0]))
 
