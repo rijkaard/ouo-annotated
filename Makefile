@@ -218,6 +218,8 @@ HFILES=\
 	wombat_stl.h\
 	world.h\
 
+TLS_OBJS = $(filter-out main.o,$(OFILES)) try-load-scripts.o
+
 .PHONY: all clean install format
 
 all: $(TARG)
@@ -228,8 +230,14 @@ $(TARG): $(OFILES) $(HFILES)
 %.o: %.c $(HFILES)
 	$(CC) -c $(CFLAGS) $*.c
 
+TLS_WRAPFLAGS = -Wl,--wrap=FileManager_OpenByType \
+                -Wl,--wrap=CScriptManager_FindOrLoad
+
+try-load-scripts: $(TLS_OBJS) $(HFILES)
+	$(LD) $(LDFLAGS) $(TLS_WRAPFLAGS) -o $@ $(TLS_OBJS) -lm
+
 clean:
-	rm -f *.o ouo
+	rm -f *.o ouo try-load-scripts
 
 install: $(TARG)
 	install -d $(DESTDIR)/opt/ouo/run
