@@ -225,8 +225,11 @@ $(TARG): $(OFILES) $(HFILES)
 %.o: %.c $(HFILES)
 	$(CC) -c $(CFLAGS) $*.c
 
+TLS_WRAPFLAGS = -Wl,--wrap=FileManager_OpenByType \
+                -Wl,--wrap=CScriptManager_FindOrLoad
+
 try-load-scripts: $(TLS_OBJS) $(HFILES)
-	$(LD) $(LDFLAGS) -o $@ $(TLS_OBJS) -lm
+	$(LD) $(LDFLAGS) $(TLS_WRAPFLAGS) -o $@ $(TLS_OBJS) -lm
 
 clean:
 	rm -f *.o ouo try-load-scripts

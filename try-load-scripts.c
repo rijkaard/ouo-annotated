@@ -7,6 +7,7 @@
 
 #include "containerhandle.h"
 #include "dat.h"
+#include "filemanager.h"
 #include "main.h"
 #include "region.h"
 #include "skill.h"
@@ -59,6 +60,86 @@ void ProgressBar_Update(int percent) { (void)percent; }
 void InitPoolSizes(void) {}
 
 /*
+ * Base path used by the FileManager_OpenByType wrapper below.
+ * Set to "<target-dir>/" before loading begins.
+ */
+static char g_scripts_basepath[4096];
+
+/*
+ * Redirect all type-0x31 (script) opens to our target directory instead of
+ * the hardcoded ../.rundir/scripts/ path, so parent scripts loaded via
+ * CScriptManager_LoadScript use the same SDB as the scripts we're testing.
+ */
+extern FILE *__real_FileManager_OpenByType(int category, const char *filename,
+                                           const char *mode);
+
+FILE *__wrap_FileManager_OpenByType(int category, const char *filename,
+                                    const char *mode)
+{
+    if (category == 0x31 && g_scripts_basepath[0] != '\0') {
+        char path[4096 + 512];
+        snprintf(path, sizeof(path), "%s%s", g_scripts_basepath, filename);
+        return fopen(path, mode);
+    }
+    return __real_FileManager_OpenByType(category, filename, mode);
+}
+
+/*
+ * Dummy CScript returned when the real FindOrLoad returns NULL.
+ * ParseInherits dereferences the result unconditionally; a zero-initialized
+ * CScript (empty funcList, empty namedScope, null trigHandlers) is safe to
+ * copy from and prevents the crash.  Allocated once on first use.
+ */
+static CScript *g_dummy_parent;
+
+static CScript *get_dummy_parent(void)
+{
+    if (g_dummy_parent == NULL) {
+        g_dummy_parent = (CScript *)OperatorNew(sizeof(CScript));
+        if (g_dummy_parent != NULL)
+            CScript_Constructor(g_dummy_parent, "<missing-parent>");
+    }
+    return g_dummy_parent;
+}
+
+extern CScript *__real_CScriptManager_FindOrLoad(CScriptManager *mgr,
+                                                  const char *name);
+
+/*
+ * Set (and the name copied) whenever FindOrLoad has to substitute the dummy.
+ * Cleared before each top-level load_article call.  Non-zero after
+ * load_article returns means the script inherits from a missing parent —
+ * count that as a failure even if ParseScriptInner returned non-NULL.
+ */
+static int  g_missing_parent;
+static char g_missing_parent_name[256];
+
+/*
+ * If the real FindOrLoad returns NULL (parent script missing or unparseable),
+ * return a dummy empty CScript so ParseInherits doesn't crash.
+ * Record the missing parent name so the caller can report a real failure.
+ */
+CScript *__wrap_CScriptManager_FindOrLoad(CScriptManager *mgr, const char *name)
+{
+    CScript *s = __real_CScriptManager_FindOrLoad(mgr, name);
+    if (s == NULL) {
+        /* Clean up any stale compiler left by a failed nested parse. */
+        if (g_ScriptCompiler != NULL) {
+            CScriptCompiler *stale = g_ScriptCompiler;
+            CScriptCompiler_Destructor(stale);
+            OperatorDelete(stale);
+        }
+        if (!g_missing_parent) {
+            g_missing_parent = 1;
+            strncpy(g_missing_parent_name, name, sizeof(g_missing_parent_name) - 1);
+            g_missing_parent_name[sizeof(g_missing_parent_name) - 1] = '\0';
+        }
+        s = get_dummy_parent();
+    }
+    return s;
+}
+
+/*
  * Load compiled wombat bytecode. Returns the parsed CScript on success,
  * or NULL on failure. Thin wrapper that keeps naming consistent with the
  * rest of the wombat_compile pipeline.
@@ -107,8 +188,9 @@ static CScript *load_article(const char *path, const char *name)
 static void usage(const char *prog)
 {
     fprintf(stderr,
-            "Usage: %s [-sdb path] <scripts-directory>\n"
-            "  -sdb <path>  SDB file (default: <directory>/sdb.txt)\n",
+            "Usage: %s [-sdb path] [-v] <scripts-directory>\n"
+            "  -sdb <path>  SDB file (default: <directory>/sdb.txt)\n"
+            "  -v           verbose: show each script's load result\n",
             prog);
 }
 
@@ -116,11 +198,14 @@ int main(int argc, char *argv[])
 {
     const char *sdb_path = NULL;
     const char *dir      = NULL;
+    int verbose = 0;
     int i;
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-sdb") == 0 && i + 1 < argc) {
             sdb_path = argv[++i];
+        } else if (strcmp(argv[i], "-v") == 0) {
+            verbose = 1;
         } else if (argv[i][0] != '-') {
             dir = argv[i];
         } else {
@@ -138,6 +223,11 @@ int main(int argc, char *argv[])
         snprintf(default_sdb, sizeof(default_sdb), "%s/sdb.txt", dir);
         sdb_path = default_sdb;
     }
+
+    /* Point the FileManager type-0x31 wrapper at our target directory so
+     * parent scripts loaded via CScriptManager_LoadScript come from the
+     * same SDB-consistent tree, not the hardcoded ../.rundir/scripts/. */
+    snprintf(g_scripts_basepath, sizeof(g_scripts_basepath), "%s/", dir);
 
     /* Bootstrap the handle-map so _ServerSide I/O wrappers don't crash. */
     ContainerHandle_InitMap();
@@ -170,10 +260,22 @@ int main(int argc, char *argv[])
         memcpy(name, fname, nlen);
         name[nlen] = '\0';
 
-        if (!load_article(path, name)) {
-            fprintf(stderr, "FAIL  %s\n", fname);
+        g_missing_parent = 0;
+        g_missing_parent_name[0] = '\0';
+        CScript *script = load_article(path, name);
+
+        if (!script) {
+            fprintf(stderr, "FAIL  %s  (parse returned NULL)\n", fname);
+            n_fail++;
+        } else if (g_missing_parent) {
+            fprintf(stderr, "FAIL  %s  (missing parent: %s)\n", fname, g_missing_parent_name);
             n_fail++;
         } else {
+            if (verbose)
+                fprintf(stderr, "OK    %s\n", fname);
+            /* Register in the manager so inheritance lookups find this script
+             * from the correct directory rather than falling back to rundir. */
+            CScriptManager_AddScript(&g_ScriptManager, script);
             n_ok++;
         }
     }
