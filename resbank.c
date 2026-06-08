@@ -132,11 +132,6 @@ int g_SpawnType12Count;
 // 0x006E7678 - total spawn counter
 int g_SpawnTotalCount;
 
-// CUSTOM: respawnCountdown initial value used by ScheduleRespawnForTemplate.
-// Binary literal is 0x3A = 58 cycles (each cycle = 4096 ticks * 250 ms
-// = ~17 min, so 58 cycles ~= 16.5 h). Overridden via -spawn-refund-cycles N.
-uint8_t g_SpawnRefundCycles = 0x3A;
-
 // 0x006EFECC - Vendor (shopkeeper) linked list head.
 // Vendors are linked via prevNPC (0x478) as next and npcSfx (0x47C) area as prev.
 CNPC *g_VendorListHead;
@@ -2038,36 +2033,17 @@ ResBankResourceCheck(CLocation *loc, int resTypeId, int amount)
 /*
  * 0x004AF0EC - CResBankManager::ScheduleRespawnForTemplate
  *
- * Binary semantics: overwrite-on-priority. newPriority = amount * 0x3A;
- * if newPriority > currentPriority (respawnAmount * respawnCountdown),
- * overwrite the slot and set respawnCountdown = 0x3A. Otherwise drop
- * the new reservation. This works when called from one script-driven
- * site (Script_addConsumer); under our high-frequency caller
- * RefundResourceNodesToBank (item decay -> bank refund) the overwrite
- * silently drops most amounts since there is only one slot per
- * templateIndex.
- *
- * MODIFIED (FEAT_CLOSED_ECONOMY): accumulate amounts into
- * respawnAmount[templateIndex] and start the countdown at
- * g_SpawnRefundCycles (default 0x3A = 58 cycles, binary literal;
- * overridable via -spawn-refund-cycles N) only when the slot is
- * empty (countdown == 0). Subsequent refunds during an active
- * window extend the amount but not the deadline; refunds arriving
- * after a payout start a fresh window. The flag-on branch also
- * writes respawnTemplateId[templateIndex] like the binary's else-
- * branch so GetRespawnTimer / Script_whoIsLargestConsumer read the
- * live slot identifier. InitRespawn returns the accumulated amount
- * via AddToQuantity when the countdown expires. Required for the
- * decay-side hook to function: many item decays at once must
- * aggregate into a single refund per resource type, not race for
- * the single slot.
+ * Overwrite-on-priority. newPriority = amount * 0x3A; if newPriority >
+ * currentPriority (respawnAmount * respawnCountdown), overwrite the slot and
+ * set respawnCountdown = 0x3A. Otherwise drop the new reservation. Called from
+ * Script_addConsumer; the slot is read back by GetRespawnTimer /
+ * Script_whoIsLargestConsumer.
  */
 void
 CResBankManager_ScheduleRespawnForTemplate(CLocation *loc, int templateIndex, int16_t amount, int16_t templateValue)
 {
 	CResBankRegion *region;
 	int32_t currentPriority, newPriority;
-	int32_t cycles;
 
 	if (!ValidateTemplateId(templateIndex))
 		return;
@@ -2079,33 +2055,18 @@ CResBankManager_ScheduleRespawnForTemplate(CLocation *loc, int templateIndex, in
 	if (region == g_ResBankManager.noRegion)
 		return;
 
-	cycles = g_SpawnRefundCycles;
-
-	if (feat(FEAT_CLOSED_ECONOMY)) {
-		region->respawnAmount[templateIndex] += (uint16_t)amount;
-		if (region->respawnCountdown[templateIndex] == 0)
-			region->respawnCountdown[templateIndex] = (uint8_t)cycles;
-		// Match the binary's slot-identifier write so GetRespawnTimer
-		// (0x004AF1AA) and Script_whoIsLargestConsumer return the live
-		// templateValue for this slot instead of stale data. Our
-		// non-script callers (Spawn_ScheduleRespawn,
-		// RefundResourceNodesToBank) pass 0, which is harmless - the
-		// inspection wrappers just return what we stored.
-		region->respawnTemplateId[templateIndex] = (uint16_t)templateValue;
-		return;
-	}
-
 	// Binary uses movsx for respawnAmount (sign-extend int16) and movzx for
-	// respawnCountdown (zero-extend uint8), then signed imul.
+	// respawnCountdown (zero-extend uint8), then signed imul by the literal
+	// 0x3A (0x004AF165) and stores 0x3A into respawnCountdown (0x004AF19D).
 	currentPriority = (int32_t)(int16_t)region->respawnAmount[templateIndex] * (int32_t)region->respawnCountdown[templateIndex];
-	newPriority = (int32_t)amount * cycles;
+	newPriority = (int32_t)amount * 0x3A;
 
 	if (newPriority <= currentPriority)
 		return;
 
 	region->respawnTemplateId[templateIndex] = (uint16_t)templateValue;
 	region->respawnAmount[templateIndex] = (uint16_t)amount;
-	region->respawnCountdown[templateIndex] = (uint8_t)cycles;
+	region->respawnCountdown[templateIndex] = 0x3A;
 }
 
 /*
@@ -2138,9 +2099,6 @@ CResBankManager_GetRespawnTimer(CLocation *loc, int templateIndex)
  * Decrements each region's per-template countdown and clears expired
  * slots (respawnTemplateId=0xFFFF, respawnAmount=0). Resets
  * respawnChunkTimer so ProcessRespawnChunk can start walking blocks.
- *
- * FEAT_CLOSED_ECONOMY: when a countdown expires, returns the accumulated
- * amount via AddToQuantity before clearing the slot.
  */
 void
 CResBankManager_InitRespawn(void)
@@ -2156,9 +2114,6 @@ CResBankManager_InitRespawn(void)
 				continue;
 			region->respawnCountdown[i]--;
 			if (region->respawnCountdown[i] == 0) {
-				if (feat(FEAT_CLOSED_ECONOMY)) {
-					CResBankRegion_AddToQuantity(region, i, (int32_t)region->respawnAmount[i]);
-				}
 				region->respawnTemplateId[i] = 0xFFFF;
 				region->respawnAmount[i] = 0;
 			}
@@ -2349,8 +2304,13 @@ CResBankRegion_CanSpawnTemplate(CResBankRegion *region, uint16_t templateId)
 			continue;
 		}
 
-		// Dead code in demo (CheckTemplateOverLimit stub skips here).
-		if (g_SpawningInProgress && region->nospawn) {
+		// Dead in the demo (CheckTemplateOverLimit stub returns 1). Under
+		// FEAT_CLOSED_ECONOMY the gate is live: the binary's initial-spawn
+		// path keyed off `g_SpawningInProgress && region->nospawn` (verified
+		// r2 @0x004AF61E), but our shipped resbank.mul carries nospawn=0, so
+		// this is MODIFIED to also take the maxSpawns/16 path under the flag -
+		// a resource stops spawning once its bank drops to 1/16 of capacity.
+		if (g_SpawningInProgress && (region->nospawn || feat(FEAT_CLOSED_ECONOMY))) {
 			int quota = region->maxSpawns[nodeId] >> 4;
 			if (region->quantities[nodeId] > quota) {
 				node = node->next;
@@ -5496,9 +5456,29 @@ DeductSpawnFromBank(uint16_t templateId, CLocation *loc)
 	if (tmpl == NULL)
 		return;
 	for (nd = tmpl->resourceNodes; nd != NULL; nd = nd->next) {
+		int32_t avail;
+		int32_t take;
+
 		if (nd->type != 3 || nd->id == 0)
 			continue;
-		CResBankRegion_SubtractFromQuantity(region, nd->id, nd->value1);
+
+		// CUSTOM (FEAT_CLOSED_ECONOMY): a resource bank cannot drop below
+		// empty. CanSpawnTemplate floor-gates the director spawn, but it is a
+		// pre-check - a single debit can overshoot a near-empty resource past
+		// zero - and the per-NPC respawn queue (PendingNPCRespawn_Tick ->
+		// SpawnAtPointForLocation) spawns with g_SpawningInProgress clear, so
+		// its CanSpawnTemplate check uses the looser >0 threshold instead of
+		// the maxSpawns>>4 floor. Either path can drive a thin resource (meat,
+		// carnivoremeat) negative, and a negative balance makes
+		// ResBankLimitCheck reject meat-vendor stock, which culls the stockless
+		// vendor (CTemplateManager_CreateFromTemplate). Clamp the debit at zero
+		// so the closed economy starves the spawn, not the shopkeeper.
+		avail = CResBankRegion_GetQuantity(region, nd->id);
+		take = nd->value1;
+		if (take > avail)
+			take = (avail > 0) ? avail : 0;
+
+		CResBankRegion_SubtractFromQuantity(region, nd->id, take);
 		CResBankRegion_AddToSpawnedCount(region, nd->id, nd->value1);
 	}
 }
@@ -5506,10 +5486,13 @@ DeductSpawnFromBank(uint16_t templateId, CLocation *loc)
 /*
  * Helper - RefundResourceNodesToBank
  *
- * For each non-empty type-3 production node on item, schedules a budget
- * refund at item->location via ScheduleRespawnForTemplate. Called from
- * destruction sites (CItem_DecayTick path) under FEAT_CLOSED_ECONOMY.
- * The value3<=0 guard skips nodes already drained by harvest scripts
+ * For each non-empty type-3 production node on item, credits the regional bank
+ * at item->location directly via CResBankRegion_AddToQuantity. Called from
+ * destruction sites (CItem_DecayTick path) under FEAT_CLOSED_ECONOMY, mirroring
+ * the harvest-side credit in Script_returnResourcesToBank: a decayed corpse
+ * returns its resources synchronously. The credit lands in quantities[], which
+ * SaveResBank persists, so nothing is left in flight to drop on restart. The
+ * value3<=0 guard skips nodes already drained by harvest scripts
  * (Script_returnResourcesToBank) so the bank is not double-credited.
  */
 void
@@ -5517,15 +5500,19 @@ RefundResourceNodesToBank(CItem *item)
 {
 	CResourceNode *nd;
 	CLocation *loc;
+	CResBankRegion *region;
 
 	if (item == NULL)
 		return;
 
 	loc = &item->resourceEntity.entity.location;
+	region = CResBankManager_GetRegionByLocation(loc->x, loc->y);
+	if (region == NULL || region == g_ResBankManager.noRegion)
+		return;
 
 	for (nd = item->resourceEntity.firstChild; nd != NULL; nd = nd->next) {
 		if (nd->type != 3 || nd->id == 0 || nd->value3 <= 0)
 			continue;
-		CResBankManager_ScheduleRespawnForTemplate(loc, nd->id, (int16_t)nd->value3, 0);
+		CResBankRegion_AddToQuantity(region, nd->id, nd->value3);
 	}
 }

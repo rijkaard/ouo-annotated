@@ -35,6 +35,7 @@ static const struct FeatEntry featTable[] = {
 	{ "ecology",           FEAT_ECOLOGY },
 	{ "lights",            FEAT_LIGHTS },
 	{ "creation_colors",   FEAT_CREATION_COLORS },
+	{ "hint_rumors",       FEAT_HINT_RUMORS },
 	{ "spawn_strict_tags", FEAT_SPAWN_STRICT_TAGS },
 	{ "closed_economy",    FEAT_CLOSED_ECONOMY },
 	{ "skill_tracking",    FEAT_SKILL_TRACKING },
@@ -78,6 +79,12 @@ Features_Parse(const char *arg)
 
 	for (tok = strtok(buf, ","); tok != NULL; tok = strtok(NULL, ",")) {
 		int found = 0;
+		// "all" composes inside a list: -features all,closed_economy enables
+		// every default feature plus the opt-in FEAT_CLOSED_ECONOMY.
+		if (strcmp(tok, "all") == 0) {
+			g_Features |= FEAT_ALL;
+			continue;
+		}
 		for (i = 0; i < (int)nelem(featTable); i++) {
 			if (strcmp(tok, featTable[i].name) == 0) {
 				g_Features |= featTable[i].flag;

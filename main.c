@@ -22,9 +22,11 @@
 #include "containerhandle.h"
 #include "dynamic.h"
 #include "egg.h"
+#include "entitymanager.h"
 #include "feature.h"
 #include "item.h"
 #include "listensocket.h"
+#include "load.h"
 #include "magicfactory.h"
 #include "main.h"
 #include "multi.h"
@@ -302,16 +304,21 @@ Server_Loop(void)
 	BackupFile(GLOBAL_file_dynamic0_mul, GLOBAL_file_dynamic0_bkp);
 	SaveDynamic0();
 	Account_SaveAll();
+	// CUSTOM (FEAT_CLOSED_ECONOMY): final bank snapshot on clean exit.
+	SaveAll_ResBank();
 	ContainerHandle_ShutdownAll();
 
 	// CUSTOM: shutdown-only cleanup walkers (no binary equivalent).
 	// Release per-entity timer chains, tag lists, and tracking pool
-	// nodes that the binary would leak at process exit, free the
-	// WombatArray entries still held in g_WombatArrays, and release
-	// the CString / CUString allocations the parser left orphaned
-	// inside script ResultNodes, so the valgrind exit report stays
-	// focused on real leaks.
+	// nodes that the binary would leak at process exit - for both the
+	// live world hash (World_ShutdownEntities) and the dead-entity
+	// archive that logged-out players are parked in
+	// (EntityManager_ShutdownArchive) - free the WombatArray entries
+	// still held in g_WombatArrays, and release the CString / CUString
+	// allocations the parser left orphaned inside script ResultNodes,
+	// so the valgrind exit report stays focused on real leaks.
 	World_ShutdownEntities();
+	EntityManager_ShutdownArchive();
 	Wombat_ShutdownArrays();
 	Wombat_FreeParserStrings();
 
@@ -578,14 +585,6 @@ parseargs(int argc, char **argv)
 				fprintf(stderr, "invalid spawn-cooldown: %s (seconds, 0-86400)\n", argv[i + 1]);
 			}
 			i++;
-		} else if (strcmp(argv[i], "-spawn-refund-cycles") == 0 && i + 1 < argc) {
-			int n = atoi(argv[i + 1]);
-			if (n >= 1 && n <= 255) {
-				g_SpawnRefundCycles = (uint8_t)n;
-			} else {
-				fprintf(stderr, "invalid spawn-refund-cycles: %s (1-255, default 58)\n", argv[i + 1]);
-			}
-			i++;
 		} else if (strcmp(argv[i], "-version") == 0) {
 			printf("ouo %s\n", OUO_VERSION);
 			exit(0);
@@ -601,7 +600,6 @@ parseargs(int argc, char **argv)
 			       "  -watchdog MS      enable infinite-loop watchdog (timeout ms, min 1000)\n"
 			       "  -features LIST    feature flags (all, none, or comma-separated)\n"
 			       "  -spawn-cooldown N per-NPC respawn delay in seconds (default 1024)\n"
-			       "  -spawn-refund-cycles N  bank refund cycles after item decay (1-255, default 58)\n"
 			       "  -version          print version and exit\n"
 			       "  -help             print this help and exit\n");
 			exit(0);

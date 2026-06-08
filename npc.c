@@ -66,6 +66,9 @@ static void CNPC_SeekShelterHandler(CNPC *npc); // Custom
 static void CNPC_SeekDesiresHandler(CNPC *npc); // Custom
 static void CNPC_PurseDesiresHandler(CNPC *npc); // Custom
 static void CNPC_PurseDesiresPlayer(CNPC *npc, CItem *target); // Custom
+static int CNPC_HasFoodAppetite(CNPC *npc); // Custom
+static int CNPC_GrazeHandler(CNPC *npc); // Custom
+static int CNPC_CarnivoreFeed(CNPC *npc); // Custom
 static int CNPC_GetPowerLevel(CItem *entity); // 0x00432C65
 #ifndef CUSTOM_ECOLOGY_DEBUG
 __attribute__((unused))
@@ -2023,16 +2026,46 @@ CNPC_Heartbeat(CNPC *npc)
 	}
 
 	if (feat(FEAT_ECOLOGY)) {
-		// Hunger decay. The binary initializes stomach to hungerCapacity
-		// but never decrements it, so CNPC_CheckPetHunger almost never
-		// fires and the food AI stays dormant. CNPCHash_HeartbeatTick
-		// visits 8 of 64 hash buckets per call (every 8 global ticks =
-		// 2s), so each NPC's Heartbeat fires every ~16s. Decrement
-		// every 20th tickCount (~320s); a default hungerCapacity of 99
-		// then crosses the pack-hunger threshold at 99/8 in roughly 7
-		// hours, long enough for ScavengerPickup / IdleScan to feed.
-		if ((npc->tickCount % 20) == 0 && npc->mobile.stomach > 0)
+		// Hunger lifecycle (CUSTOM). The binary initializes stomach to
+		// hungerCapacity but never decrements or refills it, so its food
+		// AI stays dormant. We drive the full loop here, but only for
+		// creatures that actually eat: isEater is true only when the
+		// template carries a food (type-0) appetite node.
+		// CNPC_InitFromResourceNodes defaults hungerCapacity to 99 even
+		// for creatures with no food node (undead, elementals, summoned),
+		// so gating on hungerCapacity would wrongly starve them - gate on
+		// the appetite node instead. Carnivores refill via
+		// CNPC_FindFoodInPack (meat corpses); herbivores/foragers refill
+		// via CNPC_GrazeHandler (chunk-egg vegetation).
+		int isEater = CNPC_HasFoodAppetite(npc);
+
+		// Hunger decay. CNPCHash_HeartbeatTick visits 8 of 64 hash buckets
+		// per call (every 8 global ticks = 2s), so each NPC's Heartbeat
+		// fires every ~16s. Decrement every 20th tickCount (~320s).
+		if (isEater && (npc->tickCount % 20) == 0 && npc->mobile.stomach > 0)
 			npc->mobile.stomach--;
+
+		// Starvation (Raph Koster's design: unfed creatures starve, so the
+		// population loop self-regulates). Once an eater's stomach empties
+		// and it has found no food, it bleeds HP each heartbeat and dies
+		// through the normal death path, leaving a corpse for scavengers.
+		// Exempt: non-eaters (no food appetite, via isEater), tamed pets
+		// (player owner), human-bodied NPCs (townsfolk/vendors/guards),
+		// and invulnerable mobiles. Damage is maxHp/8 (floor 1) so death
+		// takes ~8 starving heartbeats regardless of creature size; a fed
+		// creature refills before reaching 0.
+		if (isEater && npc->mobile.stomach == 0 && !CMobile_IsInvulnerable(mob) && !CMobile_IsHumanBodyType(mob) &&
+		        (mob->owner == NULL || !VT_IsPlayer((CItem *)mob->owner))) {
+			int dmg = (int)mob->maxHp / 8;
+			if (dmg < 1)
+				dmg = 1;
+			if ((int)mob->hp <= dmg) {
+				((void (*)(void *, void *, int))VT_FN((CItem *)npc, VT_ON_DEATH_WRAP))(npc, NULL, 1);
+				((void (*)(void *))VT_FN((CItem *)npc, VT_DELETE))(npc);
+				return 0;
+			}
+			((uint32_t (*)(void *, int, int))VT_FN((CItem *)npc, VT_SET_HP))(npc, (int)mob->hp - dmg, 0);
+		}
 	}
 
 	CNPC_HandleStates(npc);
@@ -4148,6 +4181,8 @@ state_switch:
 	case NPC_STATE_SEEK_FOOD:
 		if (((int (*)(void *, int))VT_FN((CItem *)npc, VT_TEST_BEHAVIOR))(npc, 0x10002))
 			CNPC_SetState(npc, NPC_STATE_IDLE);
+		else if (feat(FEAT_ECOLOGY) && (CNPC_GrazeHandler(npc) || CNPC_CarnivoreFeed(npc)))
+			CNPC_SetState(npc, NPC_STATE_IDLE);
 		else
 			CNPC_FoodSeek(npc);
 		break;
@@ -4390,8 +4425,25 @@ CNPC_FindFoodInPack(CMobile *mob, CMobile *feeder)
 				node = CResourceEntity_FindNode(item, (uint16_t)g_ResTypeId_CarnivoreMeat, 3);
 
 			if (node != NULL) {
-				if (CNPC_ConsumeFood((CNPC *)feeder, item))
+				if (CNPC_ConsumeFood((CNPC *)feeder, item)) {
+					// CUSTOM (FEAT_ECOLOGY): ConsumeFood
+					// (binary-faithful) only stows the meat item;
+					// the documented stomach refill lives here so
+					// ConsumeFood stays exact. This is what makes
+					// CNPC_TryEatFood's while (stomach <
+					// hungerCapacity) top-off loop terminate.
+					// stomach is uint8 (0x31C): compute in int and
+					// clamp to capacity and the byte range.
+					int cap = (int)((CNPC *)feeder)->hungerCapacity;
+					int gain = (int)node->value1;
+					int s = (int)(uint8_t)feeder->stomach + (gain > 0 ? gain : 0);
+					if (s > cap)
+						s = cap;
+					if (s > 255)
+						s = 255;
+					feeder->stomach = (uint8_t)s;
 					return 1;
+				}
 			}
 		}
 
@@ -4996,9 +5048,20 @@ CMobile_IsHumanNPC(CMobile *this)
 /*
  * 0x004AB34C - NPC_PackMerge
  *
- * Resolves both mobs to their pack leaders and, when the packs have
- * enough aggregate hunger capacity, folds the weaker leader (and its
- * followers) under the stronger one by encumbrance limit.
+ * Resolves both mobs to their pack leaders and, when there is enough
+ * aggregate hunger capacity, folds the weaker leader (and its followers)
+ * under the stronger one by encumbrance limit.
+ *
+ * MODIFIED: UoDemo.exe gates the merge with an inverted comparison
+ * (0x004AB432: cmp 0, total/4; jge merge) so it only merges when the
+ * pack's combined hungerCapacity is <= 3. CNPC_InitFromResourceNodes
+ * defaults hungerCapacity to 99, so the sum is always >> 3 and the
+ * binary's pack merge is dead code for every normal creature - packing
+ * wolves scan for packmates (ScanForTargets type 1) and call this, but
+ * never actually form a pack. With FEAT_ECOLOGY enabled we use the
+ * intended "enough aggregate capacity" direction so timber/dire/white/
+ * grey wolves (templatestable.dat packing=1) pack up; the inert binary
+ * test is kept exactly in the else branch.
  */
 void
 NPC_PackMerge(CMobile *mobA, CMobile *mobB)
@@ -5034,8 +5097,15 @@ NPC_PackMerge(CMobile *mobA, CMobile *mobB)
 			totalFood += ((CNPC *)cur)->hungerCapacity;
 	}
 
-	if (0 < (totalFood + (totalFood < 0 ? 3 : 0)) / 4)
-		return;
+	if (feat(FEAT_ECOLOGY)) {
+		// Revive the demo's inert pack merge (see top comment): bail
+		// only when there is too little aggregate capacity to pack.
+		if (0 >= (totalFood + (totalFood < 0 ? 3 : 0)) / 4)
+			return;
+	} else {
+		if (0 < (totalFood + (totalFood < 0 ? 3 : 0)) / 4)
+			return;
+	}
 
 	limitB = CMobile_GetEncumbranceLimit(leaderB);
 	limitA = CMobile_GetEncumbranceLimit(leaderA);
@@ -7371,4 +7441,213 @@ CNPC_PurseDesiresHandler(CNPC *npc)
 		CNPC_HoardReturnHome(npc);
 	else
 		CNPC_SetState(npc, NPC_STATE_SEEK_DESIRES);
+}
+
+/*
+ * Custom - CNPC_HasFoodAppetite (FEAT_ECOLOGY)
+ *
+ * True when the creature carries a food (type-0) appetite resource node,
+ * i.e. it is meant to eat. CNPC_InitFromResourceNodes defaults
+ * hungerCapacity to 99 even for creatures with no food node, so the hunger
+ * lifecycle (decay, refill, starvation) must key off the appetite node
+ * itself rather than hungerCapacity - otherwise undead, elementals and
+ * summoned creatures (which carry no food node) would wrongly starve.
+ * Stateless rescan of the live node chain (the same chain
+ * CNPC_InitFromResourceNodes walks), so it cannot desync across save/load
+ * or pack merges.
+ */
+static int
+CNPC_HasFoodAppetite(CNPC *npc)
+{
+	CResourceNode *node;
+
+	node = npc->mobile.container.item.resourceEntity.firstChild;
+	while (node != NULL) {
+		if ((int8_t)node->type == 0 && (uint16_t)node->id != 0)
+			return 1;
+		node = node->next;
+	}
+	return 0;
+}
+
+/*
+ * Custom - CNPC_GrazeHandler (FEAT_ECOLOGY)
+ *
+ * Herbivore/forager feeding. The carnivore food AI (CNPC_FindFoodInPack)
+ * only finds MEAT/CARNIVOREMEAT on corpses, but a creature's vegetation
+ * food (GRASS, CROPS, FISH, ...) lives as a type-3 production node on the
+ * per-8x8-block chunk egg (resbank.c ProcessStaticTiles), regrown over
+ * time by CResBankManager_ProcessRespawnChunk and drained from the
+ * regional bank under FEAT_CLOSED_ECONOMY. Grazing matches each of the
+ * NPC's food (type-0) appetite ids against the chunk egg at its own tile;
+ * on a hit with stock it consumes vegetation (node->value3) and refills
+ * stomach by the same amount, so the closed loop is preserved (eaten
+ * vegetation drops out of the world and regrows from the bank). The lookup
+ * is a single chunk-egg fetch with no radial search or pathfinding, so it
+ * avoids the cost that got the binary's food-seeking AI disabled. Returns
+ * 1 if the NPC grazed.
+ *
+ * Pure carnivores fall through harmlessly: their only food id is MEAT/
+ * CARNIVOREMEAT, which is not a vegetation node on a chunk egg, so
+ * CResourceEntity_FindNode returns NULL and they continue to the meat path
+ * in CNPC_FoodSeek.
+ */
+static int
+CNPC_GrazeHandler(CNPC *npc)
+{
+	CMobile *mob = &npc->mobile;
+	CLocation *loc = &mob->container.item.resourceEntity.entity.location;
+	CBlock *block;
+	CItem *egg;
+	CResourceNode *pref;
+	CResourceNode *node;
+	int cap;
+	int want;
+	int bite;
+	int blockIndex;
+
+	cap = (int)npc->hungerCapacity;
+	if (cap > 255)
+		cap = 255; // stomach is uint8
+	want = cap - (int)(uint8_t)mob->stomach;
+	if (want <= 0)
+		return 0; // full / not hungry
+
+	blockIndex = CBlockManager_GetBlockIndexFromLoc(&g_SpatialGrid, loc, 0);
+	if (blockIndex < 0)
+		return 0;
+	block = CBlockManager_GetBlock(&g_SpatialGrid, blockIndex);
+	if (block == NULL)
+		return 0;
+	egg = block->chunkEgg;
+	if (egg == NULL)
+		return 0;
+
+	for (pref = mob->container.item.resourceEntity.firstChild; pref != NULL; pref = pref->next) {
+		if ((int8_t)pref->type != 0 || (uint16_t)pref->id == 0)
+			continue;
+		node = CResourceEntity_FindNode(egg, (uint16_t)pref->id, 3);
+		if (node == NULL || node->value3 <= 0)
+			continue;
+
+		bite = want;
+		if (bite > node->value3)
+			bite = node->value3;
+		if (bite <= 0)
+			continue;
+
+		CResourceEntity_NotifyPreModify(egg);
+		node->value3 -= bite;
+		CResourceEntity_NotifyPostModify(egg);
+		CResourceEntity_NotifyPostModifyIfActive(egg);
+
+		mob->stomach = (uint8_t)((int)(uint8_t)mob->stomach + bite);
+		return 1;
+	}
+
+	return 0;
+}
+
+/*
+ * Custom - CNPC_CarnivoreFeed (FEAT_ECOLOGY)
+ *
+ * Carnivore analog of CNPC_GrazeHandler: completes Koster's "[living
+ * things are] attacked first, then eaten" FOOD interaction, which the
+ * binary leaves half-wired - predation kills prey but nothing refills the
+ * killer's stomach (stomach is only raised by GrazeHandler and by
+ * FindFoodInPack on meat already in the pack). A hungry meat-eater scans a
+ * 24-tile box for a corpse (or any item) carrying a type-3 MEAT or
+ * CARNIVOREMEAT node and drains it, refilling its stomach by the same
+ * amount - so a predator eats the fresh corpse of its own kill, and can
+ * scavenge others in its territory, instead of starving beside it.
+ * CMobile_CreateCorpse drains the prey's production nodes onto the corpse
+ * (CARNIVOREMEAT->MEAT), so the meat is present without a player carving it
+ * first. The meat lookup mirrors CNPC_FindFoodInPack; the drain/refill and
+ * the spatial box-scan mirror CNPC_GrazeHandler and CNPC_ScavengerPickup.
+ * Returns 1 if it fed.
+ *
+ * Herbivores fall through harmlessly: they carry no MEAT/CARNIVOREMEAT food
+ * appetite node, so the meat-eater gate returns 0 and they keep grazing.
+ */
+static int
+CNPC_CarnivoreFeed(CNPC *npc)
+{
+	CMobile *mob = &npc->mobile;
+	CLocation *loc = &mob->container.item.resourceEntity.entity.location;
+	CResourceNode *pref;
+	CResourceNode *node;
+	CItem *ent;
+	int isMeatEater;
+	int cap;
+	int want;
+	int bite;
+	int selfX, selfY;
+	int x, y;
+	int blockIndex;
+
+	// Meat-eater gate: only creatures whose diet (type-0 food appetite)
+	// includes MEAT or CARNIVOREMEAT eat corpses; herbivores keep grazing.
+	isMeatEater = 0;
+	for (pref = mob->container.item.resourceEntity.firstChild; pref != NULL; pref = pref->next) {
+		if ((int8_t)pref->type != 0 || (uint16_t)pref->id == 0)
+			continue;
+		if ((g_ResTypeId_Meat != 0 && (int)pref->id == g_ResTypeId_Meat) || (g_ResTypeId_CarnivoreMeat != 0 && (int)pref->id == g_ResTypeId_CarnivoreMeat)) {
+			isMeatEater = 1;
+			break;
+		}
+	}
+	if (!isMeatEater)
+		return 0;
+
+	cap = (int)npc->hungerCapacity;
+	if (cap > 255)
+		cap = 255; // stomach is uint8
+	want = cap - (int)(uint8_t)mob->stomach;
+	if (want <= 0)
+		return 0; // full / not hungry
+
+	selfX = (int)(int16_t)loc->x;
+	selfY = (int)(int16_t)loc->y;
+
+	for (x = selfX - 24; x <= selfX + 24; x += 8) {
+		for (y = selfY - 24; y <= selfY + 24; y += 8) {
+			blockIndex = CBlockManager_GetBlockIndex(&g_SpatialGrid, x, y, 0);
+			if (blockIndex < 0)
+				continue;
+			ent = g_SpatialGrid.cells[blockIndex].itemHead;
+			while (ent != NULL) {
+				if (ent == (CItem *)npc || ent->resourceEntity.entity.removedFromWorld || VT_IsMobile(ent)) {
+					ent = ent->spatialNext;
+					continue;
+				}
+
+				node = NULL;
+				if (g_ResTypeId_Meat != 0)
+					node = CResourceEntity_FindNode(ent, (uint16_t)g_ResTypeId_Meat, 3);
+				if (node == NULL && g_ResTypeId_CarnivoreMeat != 0)
+					node = CResourceEntity_FindNode(ent, (uint16_t)g_ResTypeId_CarnivoreMeat, 3);
+
+				if (node != NULL && node->value3 > 0) {
+					bite = want;
+					if (bite > node->value3)
+						bite = node->value3;
+
+					CResourceEntity_NotifyPreModify(ent);
+					node->value3 -= bite;
+					CResourceEntity_NotifyPostModify(ent);
+					CResourceEntity_NotifyPostModifyIfActive(ent);
+
+					mob->stomach = (uint8_t)((int)(uint8_t)mob->stomach + bite);
+
+					if ((CEntity_GetBodyType(ent) & 0xFFFF) == 0x2006)
+						CNPC_HandleCorpseEat(npc, ent);
+					return 1;
+				}
+
+				ent = ent->spatialNext;
+			}
+		}
+	}
+
+	return 0;
 }

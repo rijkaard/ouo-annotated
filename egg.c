@@ -20,7 +20,6 @@
 #include "egg.h"
 #include "resbank.h"
 #include "time.h"
-#include "feature.h"
 #include "io.h"
 #include "packet_handler.h"
 #include "packet_manager.h"
@@ -35,7 +34,7 @@ static void StaticInit_HashResTypeName(void); // 0x004A83B0
 static void CResourceTypeManager_Constructor(void); // 0x004A85E4
 
 // Binary globals.
-int g_SpawnEnabled;               // 0x00621398
+int g_SpawnEnabled = 1;           // 0x00621398
 int g_IsInitialSpawn;             // 0x006E7654
 int g_SpawningInProgress;         // 0x006E72EC
 
@@ -336,16 +335,15 @@ CEgg_Delete(CItem *item)
 /*
  * 0x004853BD - Spawn_ScheduleRespawn
  *
- * Stubbed to a no-op in the demo binary. FEAT_CLOSED_ECONOMY forwards to the
- * timer pipeline so that consumed resource amounts are replenished.
+ * No-op stub in the demo binary. Its binary call sites (the CResourceMobile
+ * destructor's orphaned-owner respawn fallback, CItem_ConsumeResource) therefore
+ * do nothing. The closed economy returns resources to the regional bank
+ * synchronously at the destruction site (RefundResourceNodesToBank for corpse
+ * decay, Script_returnResourcesToBank for harvest), not through this stub.
  */
 void
 Spawn_ScheduleRespawn(CLocation *loc, int info1, int info2)
 {
-	if (feat(FEAT_CLOSED_ECONOMY)) {
-		CResBankManager_ScheduleRespawnForTemplate(loc, info1, (int16_t)info2, 0);
-		return;
-	}
 	USED(loc);
 	USED(info1);
 	USED(info2);
